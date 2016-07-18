@@ -83,7 +83,7 @@ import           Geometry.Transform
 import           Geometry.TwoD.Types
 
 import           Diagrams.Attributes
-import           Diagrams.Style
+import           Diagrams.Types.Style
 
 import Data.Coerce
 

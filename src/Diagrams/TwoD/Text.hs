@@ -64,8 +64,6 @@ import           Geometry.Space
 import           Geometry.Envelope   (pointEnvelope)
 import           Geometry.TwoD.Types
 
-import           Diagrams.Style
-import           Diagrams.Measure
 import           Diagrams.Types
 import           Diagrams.TwoD.Attributes
 import           Diagrams.Attributes

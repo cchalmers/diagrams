@@ -41,7 +41,6 @@ import Geometry.Space
 import Geometry.Points
 import Linear ((^*))
 
-import Diagrams.Style
 import Diagrams.Types
 
 -- | Convert a 'ToPath' object into a diagram.  The resulting diagram has the

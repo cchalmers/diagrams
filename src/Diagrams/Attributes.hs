@@ -95,8 +95,8 @@ import           Data.Coerce
 
 import Geometry.Space
 
-import Diagrams.Measure
-import Diagrams.Style
+import Diagrams.Types.Measure
+import Diagrams.Types.Style
 
 ------------------------------------------------------------------------
 -- Standard measures

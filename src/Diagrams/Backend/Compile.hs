@@ -43,7 +43,6 @@ import           Geometry.Space
 import           Geometry.Path (Path)
 import           Geometry.Path.Unboxed (UPath)
 
-import           Diagrams.Style
 import           Diagrams.Types
 
 import Diagrams.TwoD.Image (DImage, Embedded, External)

@@ -19,7 +19,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Diagrams.Names
+module Diagrams.Types.Names
   (-- * Names
    -- ** Atomic names
     AName(..)
@@ -44,7 +44,7 @@ import           Data.Typeable
 import           Data.Hashable
 
 import           Geometry.Transform
-import           Diagrams.Measure
+import           Diagrams.Types.Measure
 
 ------------------------------------------------------------
 --  Names  -------------------------------------------------

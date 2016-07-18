@@ -18,9 +18,10 @@ library
     Diagrams.Prelude
     Diagrams.Attributes
     Diagrams.Backend.Compile
-    Diagrams.Measure
-    Diagrams.Names
-    Diagrams.Style
+    Diagrams.Types.Measure
+    Diagrams.Types.Annotations
+    Diagrams.Types.Names
+    Diagrams.Types.Style
     Diagrams.Types
     Diagrams.Util
     -- Diagrams.Animation.Active

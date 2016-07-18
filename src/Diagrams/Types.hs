@@ -46,21 +46,21 @@ module Diagrams.Types
 
     -- ** Annotations
 
-    -- *** Static annotations
-    Annotation(..)
-  , applyAnnotation
-  , href
-  , opacityGroup, groupOpacity
-  , shading
+--     -- *** Static annotations
+--     Annotation(..)
+--   , applyAnnotation
+--   , href
+--   , opacityGroup, groupOpacity
+--   , shading
 
-    -- *** Dynamic (monoidal) annotations
-  , UpAnnots, DownAnnots
-  , upEnvelope
-  , upTrace
-  , upQuery
+--     -- *** Dynamic (monoidal) annotations
+--   , UpAnnots, DownAnnots
+--   , upEnvelope
+--   , upTrace
+--   , upQuery
 
     -- ** Basic type definitions
-  , QDiaLeaf(..) -- , withQDiaLeaf
+    QDiaLeaf(..) -- , withQDiaLeaf
   , QDiagram(..), Diagram
 
     -- * Operations on diagrams
@@ -112,6 +112,12 @@ module Diagrams.Types
     -- ** Number classes
   , TypeableFloat
 
+    -- * Reexports
+  , module Diagrams.Types.Annotations
+  , module Diagrams.Types.Measure
+  , module Diagrams.Types.Names
+  , module Diagrams.Types.Style
+
   ) where
 
 -- import           Control.Arrow             (first, second, (***))
@@ -134,8 +140,7 @@ import           Data.Monoid.Deletable
 -- import           Data.Monoid.MList
 import           Data.Monoid.WithSemigroup
 import qualified Data.Tree.DUAL.Label      as D
-import Data.Sequence (Seq)
-import Geometry.Path.Unboxed (UPath)
+-- import Geometry.Path.Unboxed (UPath)
 
 import           Geometry.Align
 import           Geometry.Envelope
@@ -147,8 +152,10 @@ import           Geometry.Trace
 import           Geometry.Transform
 import           Geometry.Space
 
-import           Diagrams.Names
-import           Diagrams.Style
+import           Diagrams.Types.Names
+import           Diagrams.Types.Measure
+import           Diagrams.Types.Style
+import           Diagrams.Types.Annotations
 
 -- import           Linear.Affine
 import           Linear.Metric
@@ -163,162 +170,27 @@ class (Typeable n, RealFloat n) => TypeableFloat n
 instance (Typeable n, RealFloat n) => TypeableFloat n
 -- use class instead of type constraint so users don't need constraint kinds pragma
 
-------------------------------------------------------------------------
--- Annotations
-------------------------------------------------------------------------
+-- -- | Apply a static annotation at the root of a diagram.
+-- applyAnnotation :: Annotation v n -> QDiagram v n m -> QDiagram v n m
+-- applyAnnotation an (QD dt) = QD (D.annot an dt)
 
--- Up annotations ------------------------------------------------------
+-- -- | Make a diagram into a hyperlink. Note that only some backends
+-- --   will honor hyperlink annotations.
+-- href :: String -> QDiagram v n m -> QDiagram v n m
+-- href = applyAnnotation . Href
 
--- | Monoidal annotations which travel up the diagram tree, /i.e./ which
---   are aggregated from component diagrams to the whole:
---
---   * envelopes (see "Diagrams.Core.Envelope").
---     The envelopes are \"deletable\" meaning that at any point we can
---     throw away the existing envelope and replace it with a new one;
---     sometimes we want to consider a diagram as having a different
---     envelope unrelated to its \"natural\" envelope.
---
---   * traces (see "Diagrams.Core.Trace"), also
---     deletable.
---
---   * name/subdiagram associations (see "Diagrams.Core.Names")
---
---   * query functions (see "Diagrams.Core.Query")
--- type UpAnnots b v n m = Deletable (Envelope v n)
---                     ::: Deletable (Trace v n)
---                     ::: Query v n m
---                     ::: ()
-
-data UpAnnots v n m = UpAnnots
-  (Deletable (Envelope v n))
-  (Deletable (Trace v n))
-  (Query v n m)
--- Envelope and trace are 'Deleteable' so we can replace them. Just
--- replacing the top level up annotation isn't enough because we want to
--- be able to rebuild the up annotations when modifying a subdiagram.
-
-type instance V (UpAnnots v n m) = v
-type instance N (UpAnnots v n m) = n
-
-instance (Metric v, HasLinearMap v, OrderedField n) => Transformable (UpAnnots v n m) where
-  transform t (UpAnnots e tr q) =
-    UpAnnots (transform t e) (transform t tr) (transform t q)
-  {-# INLINE transform #-}
-
-instance (Ord n, Semigroup m) => Semigroup (UpAnnots v n m) where
-  UpAnnots e1 t1 q1 <> UpAnnots e2 t2 q2 = UpAnnots (e1<>e2) (t1<>t2) (q1<>q2)
-  {-# INLINE (<>) #-}
-
-instance Functor (UpAnnots v n) where
-  fmap f = upQuery %~ fmap f
-  {-# INLINE fmap #-}
-
--- | 'mempty' for 'UpAnnots' with less constraints.
-emptyUp :: Monoid m => UpAnnots v n m
-emptyUp =
-  UpAnnots
-    (toDeletable EmptyEnvelope)
-    (toDeletable (Trace $ \_ _ -> unsafeMkSortedList []))
-    mempty
-{-# INLINE emptyUp #-}
-
-instance (Ord n, Semigroup m, Monoid m) => Monoid (UpAnnots v n m) where
-  mempty = emptyUp
-  {-# INLINE mempty  #-}
-  mappend = (<>)
-  {-# INLINE mappend #-}
-
-deletable :: Lens' (Deletable a) a
-deletable f (Deletable a x b) = f x <&> \x' -> Deletable a x' b
-{-# INLINE deletable #-}
-
--- note that lenses to envelope and trace for a diagram would not be
--- lawful, namely the functor law:
--- over l id == id
--- this is (setEnvelope . getEnvelope) would force the envelope to be
--- whatever the current envelope it. If later we modified a subdiagram,
--- the change in envelope would not pass this point.
-
--- | Lens onto the envelope of an up annotation.
-upEnvelope :: Lens' (UpAnnots v n m) (Envelope v n)
-upEnvelope = upEnvelopeD . deletable
-{-# INLINE upEnvelope #-}
-
-upEnvelopeD :: Lens' (UpAnnots v n m) (Deletable (Envelope v n))
-upEnvelopeD f (UpAnnots e t q) = f e <&> \e' -> UpAnnots e' t q
-{-# INLINE upEnvelopeD #-}
-
--- | Lens onto the envelope of an up annotation.
-upTrace :: Lens' (UpAnnots v n m) (Trace v n)
-upTrace = upTraceD . deletable
-{-# INLINE upTrace #-}
-
-upTraceD :: Lens' (UpAnnots v n m) (Deletable (Trace v n))
-upTraceD f (UpAnnots e t q) = f t <&> \t' -> UpAnnots e t' q
-{-# INLINE upTraceD #-}
-
--- | Lens onto the envelope of an up annotation.
-upQuery :: Lens (UpAnnots v n m) (UpAnnots v n m') (Query v n m) (Query v n m')
-upQuery f (UpAnnots e t q) = f q <&> \q' -> UpAnnots e t q'
-{-# INLINE upQuery #-}
-
--- Down annotations ----------------------------------------------------
-
--- | Monoidal annotations which travel down the diagram tree,
---   /i.e./ which accumulate along each path to a leaf (and which can
---   act on the upwards-travelling and static annotations):
---
---   * styles (see "Diagrams.Core.Style")
-type DownAnnots v n = Transformation v n :+: Style v n
-
--- Static annotations --------------------------------------------------
-
--- | Static annotations which can be placed at a particular node of a
---   diagram tree.
-data Annotation v n
-  = Href String    -- ^ Hyperlink
-  | OpacityGroup Double
-  | Shading (QDiagram v n Any)
-  | AClip !(Transformation v n) (Seq (UPath v n))
-     -- The transformation gets applied the same time as rendering.
-
-type instance V (Annotation v n) = v
-type instance N (Annotation v n) = n
-
--- | The shading diagram gets tranformed.
-instance (Metric v, HasLinearMap v, OrderedField n)
-    => Transformable (Annotation v n) where
-  transform t = \case
-    Shading dia -> Shading (transform t dia)
-    AClip t0 ps -> AClip (t <> t0) ps
-    a           -> a
-
--- I don't think we want any styles to be applied to the shading
--- diagram.
-instance ApplyStyle (Annotation v n) where
-  applyStyle _ = id
-
--- | Apply a static annotation at the root of a diagram.
-applyAnnotation :: Annotation v n -> QDiagram v n m -> QDiagram v n m
-applyAnnotation an (QD dt) = QD (D.annot an dt)
-
--- | Make a diagram into a hyperlink. Note that only some backends
---   will honor hyperlink annotations.
-href :: String -> QDiagram v n m -> QDiagram v n m
-href = applyAnnotation . Href
-
--- | Change the transparency of a 'Diagram' as a group.
-opacityGroup, groupOpacity :: Double -> QDiagram v n m -> QDiagram v n m
-opacityGroup = applyAnnotation . OpacityGroup
-groupOpacity = applyAnnotation . OpacityGroup
+-- -- | Change the transparency of a 'Diagram' as a group.
+-- opacityGroup, groupOpacity :: Double -> QDiagram v n m -> QDiagram v n m
+-- opacityGroup = applyAnnotation . OpacityGroup
+-- groupOpacity = applyAnnotation . OpacityGroup
 
 -- | Apply a shading to a diagram. That is, use the lumosity
 --   (brightness) of the first diagram as the alpha channel for the
 --   second diagram.
 --
 --   -- XXX List official backends that support this.
-shading :: QDiagram v n any -> QDiagram v n m -> QDiagram v n m
-shading = applyAnnotation . Shading . (mempty <$)
+-- shading :: QDiagram v n any -> QDiagram v n m -> QDiagram v n m
+-- shading = applyAnnotation . Shading . (mempty <$)
 
 ------------------------------------------------------------------------
 -- Primitives

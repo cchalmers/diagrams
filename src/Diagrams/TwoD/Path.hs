@@ -54,9 +54,7 @@ import Linear ((^*))
 
 import Linear.Affine (Point)
 
-import Diagrams.Style
 import Diagrams.Types
-import Diagrams.Names
 
 -- | Enumeration of algorithms or \"rules\" for determining which
 --   points lie in the interior of a (possibly self-intersecting)

@@ -73,7 +73,7 @@ module Diagrams
 
     -- | Giving names to subdiagrams and later retrieving
     --   subdiagrams by name.
-  , module Diagrams.Names
+  -- , module Diagrams.Names
 
     -- | Envelopes, aka functional bounding regions.
   , module Geometry.Envelope
@@ -97,7 +97,7 @@ module Diagrams
   , module Geometry.Angle
 
     -- | Convenience infix operators for working with coordinates.
-  , module Diagrams.Coordinates
+  -- , module Diagrams.Coordinates
 
     -- | Directions, distinguished from angles or vectors
   , module Geometry.Direction
@@ -140,7 +140,6 @@ import           Geometry.Combinators
 import           Geometry.Direction         hiding (dir)
 import           Geometry.Envelope
 import           Geometry.Located
-import           Diagrams.Names
 import           Geometry.Parametric
 -- import           Diagrams.Parametric.Adjust
 import           Geometry.Path              hiding (pathPoints)

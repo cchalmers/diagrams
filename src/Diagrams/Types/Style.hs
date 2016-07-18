@@ -28,7 +28,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Diagrams.Style
+module Diagrams.Types.Style
   ( -- * Attributes
     -- $attr
 
@@ -43,7 +43,7 @@ module Diagrams.Style
     -- * Styles
     -- $style
 
-  , Style(..)
+  , Style (..)
 
     -- -- ** Making styles
   -- , attributeToStyle
@@ -56,7 +56,7 @@ module Diagrams.Style
   , applyAttr
   , attributeToStyle
 
-  , ApplyStyle(..)
+  , ApplyStyle (..)
   , HasStyle (..)
 
     -- * Extracting attributes from styles
@@ -81,7 +81,7 @@ import           Data.Semigroup
 import qualified Data.Set                as S
 -- import           Data.Typeable
 
-import           Diagrams.Measure
+import           Diagrams.Types.Measure
 import           Geometry.Transform hiding (T)
 import           Geometry.Space
 
@@ -109,11 +109,12 @@ import GHC.Exts
 -- Proceedings of the 2006 ACM SIGPLAN workshop on
 -- Haskell. <http://research.microsoft.com/apps/pubs/default.aspx?id=67968>.
 
--- | The three possible types of attributes. 'SAttr's (static
---   attributes) do not get transformed. 'MAttr's are measured
---   attributes. Transforming these multiplies the 'local' measure by
---   the average scale of the transform. 'TAttr's recieve the full
---   transform.
+-- | The three possible types of attributes:
+--
+--     * 'IAttr' - inert attributes that are unaffected by transforms
+--     * 'MAttr' - measured attributes -- transforming these multiplies
+--       the 'local' measure by the average scale of the transform.
+--     * 'TAttr' - transformable attributes
 data AttrKind = SAttr | MAttr | TAttr
 
 -- | The space constraint for the attribute.
@@ -127,9 +128,11 @@ type family Attribute' k a (v :: * -> *) n :: Constraint where
 --  @
 --  'AttrType' a ~ 'SAttr' => 'AttributeSpace' a v n = 'AttributeClass' a
 --  'AttrType' a ~ 'MAttr' => 'AttributeSpace' a v n = 'AttributeClass' a
---  'AttrType' a ~ 'TAttr' => 'AttributeSpace' a v n = ('AttributeClass', 'InSpace' a v n, 'Transformable' a)
+--  'AttrType' a ~ 'TAttr' => 'AttributeSpace' a v n = ('AttributeClass' a, 'InSpace' a v n, 'Transformable' a)
 --  @
 type AttributeSpace a v n = (AttributeClass a, Attribute' (AttrType a) a v n, SingAttr (AttrType a))
+-- Not that Attribute class does not mention v or n so we can't have
+-- this a superclass of AttributeClass.
 
 -- | Every attribute must be an instance of @AttributeClass@  The
 --   'Semigroup' instance for an attribute determines how it will combine
@@ -234,6 +237,7 @@ attributeType :: Attribute v n -> TypeRep
 attributeType (SAttribute a) = typeOf a
 attributeType (MAttribute a) = mType a
 attributeType (TAttribute a) = typeOf a
+{-# INLINE attributeType #-}
 
 -- Note that we use typerep 'a' not 'Measured n a'
 mType :: forall n a. Typeable a => Measured n a -> TypeRep
@@ -259,7 +263,7 @@ type instance V (Style v n) = v
 type instance N (Style v n) = n
 
 _Style :: Iso' (Style v n) (HM.HashMap TypeRep (Attribute v n))
-_Style = iso coerce coerce
+_Style = coerced
 {-# INLINE _Style #-}
 
 -- | Combine a style by combining the attributes; if the two styles have
@@ -370,7 +374,7 @@ backupAttr :: (AttributeSpace (Backup a) v n)
 backupAttr l = atAttr (_Backup . l)
 {-# INLINE backupAttr #-}
 
--- applying styles -----------------------------------------------------
+-- Applying styles -----------------------------------------------------
 
 -- | Type class for things which can have a style applied.
 class ApplyStyle a where
@@ -433,7 +437,7 @@ newtype Attributes = RAs (HM.HashMap TypeRep Dynamic)
 instance Rewrapped Attributes Attributes
 instance Wrapped Attributes where
   type Unwrapped Attributes = (HM.HashMap TypeRep Dynamic)
-  _Wrapped' = iso coerce coerce
+  _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
 instance Each Attributes Attributes Dynamic Dynamic where

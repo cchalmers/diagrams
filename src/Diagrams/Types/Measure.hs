@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
-module Diagrams.Measure
+module Diagrams.Types.Measure
   ( Measured (..)
   , Measure
   , fromMeasured
