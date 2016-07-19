@@ -78,6 +78,18 @@ module Diagrams.Attributes (
   , LineMiterLimit, _LineMiterLimit
   , lineMiterLimit, _lineMiterLimit
 
+  -- * Annotations
+
+  -- ** GroupOpacity
+  , GroupOpacity
+  , _GroupOpacity
+  , groupOpacity
+
+  -- ** Hyperlink reference
+  , HRef
+  , _HRef
+  , href
+
   ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -95,8 +107,7 @@ import           Data.Coerce
 
 import Geometry.Space
 
-import Diagrams.Types.Measure
-import Diagrams.Types.Style
+import Diagrams.Types
 
 ------------------------------------------------------------------------
 -- Standard measures
@@ -439,10 +450,12 @@ instance Default LineJoin where
 -- | Set the segment join style.
 lineJoin :: ApplyStyle a => LineJoin -> a -> a
 lineJoin = applyAttr _LineJoin
+{-# INLINE lineJoin #-}
 
 -- | Lens onto the line join type in a style.
 _lineJoin :: HasStyle a => Lens' a (Maybe LineJoin)
 _lineJoin = style . atAttr _LineJoin
+{-# INLINE _lineJoin #-}
 
 -- miter limit ---------------------------------------------------------
 
@@ -464,8 +477,46 @@ instance Default LineMiterLimit where
 -- | Set the miter limit for joins with 'LineJoinMiter'.
 lineMiterLimit :: ApplyStyle a => Double -> a -> a
 lineMiterLimit = applyAttr _LineMiterLimit
+{-# INLINE lineMiterLimit #-}
 
 -- | Lens onto the line miter limit in a style.
 _lineMiterLimit :: HasStyle a => Lens' a (Maybe Double)
 _lineMiterLimit = style . atAttr _LineMiterLimit
+{-# INLINE _lineMiterLimit #-}
+
+-- Annotations ---------------------------------------------------------
+
+-- | The opacity of a whole group of items.
+newtype GroupOpacity = GroupOpacity Double
+  deriving (Show, Typeable)
+
+instance AnnotationClass GroupOpacity where
+  type AnnotType GroupOpacity = 'IAnnot
+
+-- | 'GroupOpacity' isomorphism.
+_GroupOpacity :: Iso' GroupOpacity Double
+_GroupOpacity = coerced
+{-# INLINE _GroupOpacity #-}
+
+-- | Set the opacity of diagram as a group.
+groupOpacity :: Double -> Diagram v -> Diagram v
+groupOpacity = applyAnnot _GroupOpacity
+{-# INLINE groupOpacity #-}
+
+-- | A hyperlink reference for the diagram.
+newtype HRef = HRef String
+  deriving (Show, Typeable)
+
+instance AnnotationClass HRef where
+  type AnnotType HRef = 'IAnnot
+
+-- | 'HRef' isomorphism.
+_HRef :: Iso' HRef String
+_HRef = coerced
+{-# INLINE _HRef #-}
+
+-- | Add a hyperlink reference to the diagram.
+href :: String -> Diagram v -> Diagram v
+href = applyAnnot _HRef
+{-# INLINE href #-}
 

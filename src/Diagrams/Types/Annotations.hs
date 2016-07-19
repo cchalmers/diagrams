@@ -47,7 +47,7 @@ module Diagrams.Types.Annotations
     -- *** Static annotations
   , AnnotKind (..)
   , Annotation
-  , AnnotationClass
+  , AnnotationClass (..)
   , AnnotationSpace
   , mkAnnot
   , getAnnot
@@ -234,12 +234,6 @@ instance Transformable (Annotation v n) where
 -- | Annotations ignore styles.
 instance ApplyStyle (Annotation v n) where
   applyStyle _ a = a
-
--- -- | Given a isomorphim between an attribute's internal representation
--- --   and the one you use, make a prism on it.
--- annotation :: AttributeSpace a v n => AnIso' a r -> Prism' (Annotation v n) a
--- annotation l = withIso l $ \ar ra -> prism' (mkAnnot ra) (fromAnnot ar)
--- {-# INLINE attribute #-}
 
 -- | Construct an annotation given a review onto the internal type.
 mkAnnot :: AnnotationSpace a v n => AReview a r -> r -> Annotation v n

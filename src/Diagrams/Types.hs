@@ -44,21 +44,6 @@ module Diagrams.Types
   (
     -- * Diagrams
 
-    -- ** Annotations
-
---     -- *** Static annotations
---     Annotation(..)
---   , applyAnnotation
---   , href
---   , opacityGroup, groupOpacity
---   , shading
-
---     -- *** Dynamic (monoidal) annotations
---   , UpAnnots, DownAnnots
---   , upEnvelope
---   , upTrace
---   , upQuery
-
     -- ** Basic type definitions
     QDiaLeaf(..) -- , withQDiaLeaf
   , QDiagram(..), Diagram
@@ -67,13 +52,9 @@ module Diagrams.Types
     -- ** Creating diagrams
   , primQD, mkQD, mkQD', pointDiagram
 
-    -- ** Combining diagrams
-
     -- | For many more ways of combining diagrams, see
     --   "Diagrams.Combinators" and "Diagrams.TwoD.Combinators"
     --   from the diagrams-lib package.
-
-  -- , atop
 
     -- ** Modifying diagrams
     -- *** Names
@@ -89,6 +70,9 @@ module Diagrams.Types
   , setTrace
   , upDiagram
   , upWith
+
+    -- *** Adding static annotations
+  , applyAnnot
 
     -- * Subdiagrams
 
@@ -120,27 +104,13 @@ module Diagrams.Types
 
   ) where
 
--- import           Control.Arrow             (first, second, (***))
-import           Control.Lens              hiding (transform) -- (Lens', Prism', Rewrapped,
-                                            -- Wrapped (..), iso, lens, over,
-                                            -- prism', view, (^.), _Wrapped,
-                                            -- _Wrapping, (<&>), (&), (.~))
--- import           Control.Monad             (mplus)
--- import           Data.List                 (isSuffixOf)
--- import qualified Data.Map                  as M
--- import           Data.Maybe                (fromMaybe, listToMaybe)
 import           Data.Semigroup
--- import qualified Data.Traversable          as T
--- import           Data.Tree
 import           Data.Typeable
 
--- import           Data.Monoid.Action
 import           Data.Monoid.Coproduct
 import           Data.Monoid.Deletable
--- import           Data.Monoid.MList
 import           Data.Monoid.WithSemigroup
 import qualified Data.Tree.DUAL.Label      as D
--- import Geometry.Path.Unboxed (UPath)
 
 import           Geometry.Align
 import           Geometry.Envelope
@@ -169,28 +139,6 @@ import           Linear.Metric
 class (Typeable n, RealFloat n) => TypeableFloat n
 instance (Typeable n, RealFloat n) => TypeableFloat n
 -- use class instead of type constraint so users don't need constraint kinds pragma
-
--- -- | Apply a static annotation at the root of a diagram.
--- applyAnnotation :: Annotation v n -> QDiagram v n m -> QDiagram v n m
--- applyAnnotation an (QD dt) = QD (D.annot an dt)
-
--- -- | Make a diagram into a hyperlink. Note that only some backends
--- --   will honor hyperlink annotations.
--- href :: String -> QDiagram v n m -> QDiagram v n m
--- href = applyAnnotation . Href
-
--- -- | Change the transparency of a 'Diagram' as a group.
--- opacityGroup, groupOpacity :: Double -> QDiagram v n m -> QDiagram v n m
--- opacityGroup = applyAnnotation . OpacityGroup
--- groupOpacity = applyAnnotation . OpacityGroup
-
--- | Apply a shading to a diagram. That is, use the lumosity
---   (brightness) of the first diagram as the alpha channel for the
---   second diagram.
---
---   -- XXX List official backends that support this.
--- shading :: QDiagram v n any -> QDiagram v n m -> QDiagram v n m
--- shading = applyAnnotation . Shading . (mempty <$)
 
 ------------------------------------------------------------------------
 -- Primitives
@@ -254,18 +202,18 @@ data QDiaLeaf v n m
 --   distinguished from 'Diagram', where @m@ is fixed to @Any@. This
 --   is not really a very good name, but it's probably not worth
 --   changing it at this point.
-newtype QDiagram v n m =
-  QD (
-  D.IDUAL AName
-          (DownAnnots v n)
-          (UpAnnots v n m)
-          (Annotation v n)
-          (QDiaLeaf v n m)
+newtype QDiagram v n m = QD
+  (D.IDUAL
+    AName
+    (DownAnnots v n)
+    (UpAnnots v n m)
+    (Annotation v n)
+    (QDiaLeaf v n m)
   )
 
 instance Wrapped (QDiagram v n m) where
   type Unwrapped (QDiagram v n m) = D.IDUAL AName (DownAnnots v n) (UpAnnots v n m) (Annotation v n) (QDiaLeaf v n m)
-  _Wrapped' = iso (\(QD d) -> d) QD
+  _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
 instance Rewrapped (QDiagram v n m) (QDiagram v' n' m')
@@ -321,6 +269,11 @@ setTrace t = over _Wrapped'
   $ D.preapplyU  (emptyUp & upTraceD .~ toDeletable t <> deleteL)
   . D.postapplyU (emptyUp & upTraceD .~ deleteR)
 {-# INLINE setTrace #-}
+
+-- | Apply an annotation.
+applyAnnot :: AnnotationSpace a v n => AReview a r -> r -> QDiagram v n m -> QDiagram v n m
+applyAnnot l r = over _Wrapped' $ D.annot (mkAnnot l r)
+{-# INLINE applyAnnot #-}
 
 -- | Get a list of names of subdiagrams and their locations.
 -- names :: (Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
@@ -454,7 +407,13 @@ instance (OrderedField n, Metric v, HasLinearMap v)
 --   paired with any accumulated information from the larger context
 --   (transformations, attributes, etc.).
 newtype Subdiagram v n m = Subdiagram
-  (D.SubIDUAL AName (DownAnnots v n) (UpAnnots v n m) (Annotation v n) (QDiaLeaf v n m))
+  (D.SubIDUAL
+    AName
+    (DownAnnots v n)
+    (UpAnnots v n m)
+    (Annotation v n)
+    (QDiaLeaf v n m)
+  )
 
 type instance V (Subdiagram v n m) = v
 type instance N (Subdiagram v n m) = n
@@ -490,7 +449,14 @@ type instance N (Subdiagram v n m) = n
 
 -- | A 'SubMap' is a map associating names to subdiagrams. There can
 --   be multiple associations for any given name.
-newtype SubMap v n m = SubMap (D.SubMap AName (DownAnnots v n) (UpAnnots v n m) (Annotation v n) (QDiaLeaf v n m))
+newtype SubMap v n m = SubMap
+  (D.SubMap
+    AName
+    (DownAnnots v n)
+    (UpAnnots v n m)
+    (Annotation v n)
+    (QDiaLeaf v n m)
+  )
 
 -- instance Wrapped (SubMap b v n m) where
 --   type Unwrapped (SubMap b v n m) = M.Map AName D.SubMap AName (DownAnnots v n) (UpAnnots v n m) (QDiaLeaf v n m)

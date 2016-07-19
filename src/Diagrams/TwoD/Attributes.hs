@@ -70,6 +70,18 @@ module Diagrams.TwoD.Attributes (
   , fillColor, fc, fcA
   , recommendFillColor
 
+  -- * Annotations
+  -- ** Clip
+  , Clip
+  , _Clip
+  , clip
+  , multiClip
+
+  -- ** Shading
+  , Shading
+  , _Shading
+  , shading
+
   ) where
 
 import           Control.Lens                hiding (transform)
@@ -77,13 +89,15 @@ import           Data.Colour                 hiding (AffineSpace, over)
 import           Data.Data
 import           Data.Default.Class
 import           Data.Semigroup
+import qualified Data.Sequence  as Seq
 
 import           Geometry.Space
 import           Geometry.Transform
 import           Geometry.TwoD.Types
+import           Geometry.Path.Unboxed
 
 import           Diagrams.Attributes
-import           Diagrams.Types.Style
+import           Diagrams.Types
 
 import Data.Coerce
 
@@ -479,6 +493,60 @@ fc = fillColor
 --   (i.e. colors with transparency). See comment after 'fillColor' about backends.
 fcA :: (InSpace V2 Double a, ApplyStyle a) => AlphaColour Double -> a -> a
 fcA = fillColor
+
+------------------------------------------------------------------------
+-- Annotations
+------------------------------------------------------------------------
+
+-- Clip ----------------------------------------------------------------
+
+newtype Clip = Clip (Seq.Seq (UPath V2 Double))
+  deriving (Semigroup, Monoid, Typeable)
+
+type instance V Clip = V2
+type instance N Clip = Double
+
+instance Transformable Clip where
+  transform = over _Clip . transform
+  {-# INLINE transform #-}
+
+instance AnnotationClass Clip where
+  type AnnotType Clip = 'TAnnot
+
+_Clip :: Iso' Clip (Seq.Seq (UPath V2 Double))
+_Clip = coerced
+{-# INLINE _Clip #-}
+
+clip :: UPath V2 Double -> Diagram V2 -> Diagram V2
+clip = multiClip . Seq.singleton
+{-# INLINE clip #-}
+
+multiClip :: Seq.Seq (UPath V2 Double) -> Diagram V2 -> Diagram V2
+multiClip = applyAnnot _Clip
+{-# INLINE multiClip #-}
+
+-- Shading -------------------------------------------------------------
+
+newtype Shading = Shading (Diagram V2)
+  deriving (Semigroup, Monoid, Typeable)
+
+type instance V Shading = V2
+type instance N Shading = Double
+
+instance Transformable Shading where
+  transform = over _Shading . transform
+  {-# INLINE transform #-}
+
+instance AnnotationClass Shading where
+  type AnnotType Shading = 'TAnnot
+
+_Shading :: Iso' Shading (Diagram V2)
+_Shading = coerced
+{-# INLINE _Shading #-}
+
+shading :: Diagram V2 -> Diagram V2 -> Diagram V2
+shading = applyAnnot _Shading
+{-# INLINE shading #-}
 
 ------------------------------------------------------------------------
 -- Gradient calculations
