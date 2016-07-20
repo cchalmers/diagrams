@@ -43,6 +43,7 @@ module Diagrams.Types.Annotations
 
     -- * Down annotations
   , DownAnnots
+  , downStyle
 
     -- *** Static annotations
   , AnnotKind (..)
@@ -181,6 +182,12 @@ upQuery f (UpAnnots e t q) = f q <&> \q' -> UpAnnots e t q'
 --   * styles (see "Diagrams.Types.Style")
 --   * transform (see "Geometry.Transform")
 type DownAnnots v n = Transformation v n :+: Style v n
+
+downStyle
+ :: (HasLinearMap v, OrderedField n)
+ => Lens' (DownAnnots v n) (Style v n)
+downStyle f d = f s <&> \s' -> inR s' <> inL t
+  where (t, s) = untangle d
 
 -- Static annotations --------------------------------------------------
 

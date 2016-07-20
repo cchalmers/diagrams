@@ -131,8 +131,7 @@ import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Path.Unboxed
 import           Diagrams.TwoD.Model
 import           Diagrams.TwoD.Combinators
-import           Geometry.BoundingBox       hiding (contains, inside,
-                                             outside)
+import           Geometry.BoundingBox
 import           Geometry.Combinators
 -- import           Diagrams.Coordinates
 -- import           Diagrams.CubicSpline
