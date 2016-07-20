@@ -1,21 +1,18 @@
-{-# LANGUAGE CPP                   #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE EmptyDataDecls        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
-
-{-# OPTIONS_GHC -fno-warn-orphans       #-}
--- We have some orphan Action instances here, but since Action is a multi-param
--- class there is really no better place to put them.
+{-# LANGUAGE ViewPatterns          #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -57,13 +54,9 @@ module Diagrams.Types
     --   from the diagrams-lib package.
 
     -- ** Modifying diagrams
-    -- *** Names
-  -- , nameSub
-  -- , lookupName
-  -- , withName
-  -- , withNameAll
-  -- , withNames
-  -- , localize
+    -- * Names
+  , named
+  , localize
 
     -- *** Replaceing up annotations
   , setEnvelope
@@ -75,22 +68,20 @@ module Diagrams.Types
   , applyAnnot
 
     -- * Subdiagrams
-
-  , Subdiagram(..) -- , mkSubdiagram
-  -- , getSub, rawSub
-  -- , location
-  -- , subPoint
+  , SubDiagram
+  , getSub
+  , modSub
+  , subLocation
 
     -- * Subdiagram maps
-
-  , SubMap(..)
-
-  -- , fromNames, rememberAs, lookupSub
+  , SubMap
+  , getSubMap
+  , subLookup
 
     -- * Primtives
     -- $prim
 
-  , Prim(..)
+  , Prim (..)
   , _Prim
 
     -- ** Number classes
@@ -104,13 +95,15 @@ module Diagrams.Types
 
   ) where
 
+import           Control.Lens
+import           Data.Coerce
 import           Data.Semigroup
 import           Data.Typeable
 
 import           Data.Monoid.Coproduct
 import           Data.Monoid.Deletable
 import           Data.Monoid.WithSemigroup
-import qualified Data.Tree.DUAL.Label      as D
+import qualified Data.Tree.DUAL.Label       as D
 
 import           Geometry.Align
 import           Geometry.Envelope
@@ -118,18 +111,16 @@ import           Geometry.HasOrigin
 import           Geometry.Juxtapose
 import           Geometry.Points
 import           Geometry.Query
+import           Geometry.Space
 import           Geometry.Trace
 import           Geometry.Transform
-import           Geometry.Space
 
-import           Diagrams.Types.Names
-import           Diagrams.Types.Measure
-import           Diagrams.Types.Style
 import           Diagrams.Types.Annotations
+import           Diagrams.Types.Measure
+import           Diagrams.Types.Names
+import           Diagrams.Types.Style
 
--- import           Linear.Affine
 import           Linear.Metric
--- import           Linear.Vector
 
 -- XXX TODO: add lots of actual diagrams to illustrate the
 -- documentation!  Haddock supports \<\<inline image urls\>\>.
@@ -211,12 +202,12 @@ newtype QDiagram v n m = QD
     (QDiaLeaf v n m)
   )
 
+instance Rewrapped (QDiagram v n m) (QDiagram v' n' m')
 instance Wrapped (QDiagram v n m) where
   type Unwrapped (QDiagram v n m) = D.IDUAL AName (DownAnnots v n) (UpAnnots v n m) (Annotation v n) (QDiaLeaf v n m)
   _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
-instance Rewrapped (QDiagram v n m) (QDiagram v' n' m')
 
 getU :: QDiagram v n m -> Maybe (UpAnnots v n m)
 getU (QD t) = D.getU t
@@ -275,6 +266,11 @@ applyAnnot :: AnnotationSpace a v n => AReview a r -> r -> QDiagram v n m -> QDi
 applyAnnot l r = over _Wrapped' $ D.annot (mkAnnot l r)
 {-# INLINE applyAnnot #-}
 
+named
+  :: (IsName nm, HasLinearMap v, OrderedField n, Monoid' m)
+  => nm -> Traversal' (QDiagram v n m) (QDiagram v n m)
+named (toName -> Name ns) = _Wrapped' . D.traverseSub ns . _Unwrapped'
+
 -- | Get a list of names of subdiagrams and their locations.
 -- names :: (Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
 --       => QDiagram v n m -> [(Name, [Point v n])]
@@ -286,13 +282,11 @@ applyAnnot l r = over _Wrapped' $ D.annot (mkAnnot l r)
 --            => nm -> QDiagram v n m -> Maybe (Subdiagram b v n m)
 -- lookupName n d = lookupSub (toName n) (d^.subMap) >>= listToMaybe
 
--- -- | \"Localize\" a diagram by hiding all the names, so they are no
--- --   longer visible to the outside.
--- localize :: forall b v n m. (Metric v, HasLinearMap v, Typeable n, OrderedField n, Semigroup m)
---          => QDiagram v n m -> QDiagram v n m
--- localize = over _Wrapped' ( D.applyUpre  (inj (deleteL :: Deletable (SubMap b v n m)))
---                    . D.applyUpost (inj (deleteR :: Deletable (SubMap b v n m)))
---                    )
+-- | \"Localize\" a diagram by hiding all the names, so they are no
+--   longer visible to the outside.
+localize :: (OrderedField n, Monoid' m)
+         => QDiagram v n m -> QDiagram v n m
+localize = over _Wrapped' D.resetLabels
 
 -- | Make a QDiagram using the default envelope, trace and query for the
 --   primitive.
@@ -392,11 +386,10 @@ instance (OrderedField n, Metric v, HasLinearMap v)
   defaultBoundary = envelopeBoundary
   {-# INLINE defaultBoundary #-}
 
--- | Diagrams can be qualified so that all their named points can
---   now be referred to using the qualification prefix.
--- instance (Metric v, HasLinearMap v, Typeable n, OrderedField n, Semigroup m)
---       => Qualifiable (QDiagram v n m) where
---   (.>>) = over _Wrapped' . D.applyD . inj . toName
+instance (HasLinearMap v, OrderedField n, Monoid' m)
+      => Qualifiable (QDiagram v n m) where
+  (toName -> Name nms) .>> QD t = QD (D.labels nms t)
+  {-# INLINE (.>>) #-}
 
 ------------------------------------------------------------
 --  Subdiagrams
@@ -406,7 +399,7 @@ instance (OrderedField n, Metric v, HasLinearMap v)
 --   of a larger diagram.  Essentially, it consists of a diagram
 --   paired with any accumulated information from the larger context
 --   (transformations, attributes, etc.).
-newtype Subdiagram v n m = Subdiagram
+newtype SubDiagram v n m = SubDiagram
   (D.SubIDUAL
     AName
     (DownAnnots v n)
@@ -415,8 +408,8 @@ newtype Subdiagram v n m = Subdiagram
     (QDiaLeaf v n m)
   )
 
-type instance V (Subdiagram v n m) = v
-type instance N (Subdiagram v n m) = n
+type instance V (SubDiagram v n m) = v
+type instance N (SubDiagram v n m) = n
 
 -- | Turn a diagram into a subdiagram with no accumulated context.
 -- mkSubdiagram :: QDiagram v n m -> Subdiagram v n m
@@ -426,9 +419,13 @@ type instance N (Subdiagram v n m) = n
 --   local origin /with respect to/ the vector space of its parent
 --   diagram.  In other words, the point where its local origin
 --   \"ended up\".
--- subLocation :: (Additive v, HasLinearMap v, Typeable n, Num n) => Subdiagram v n m -> Point v n
--- subLocation (Subdiagram _ _ d) = papply (transfFromAnnot a) origin
--- {-# INLINE subLocation #-}
+subLocation
+  :: (HasLinearMap v, Num n)
+  => SubDiagram v n m -> Point v n
+subLocation (SubDiagram sub) = case D.accumDown sub of
+  Just d  -> papply (killR d) origin
+  Nothing -> origin
+{-# INLINE subLocation #-}
 
 -- | Turn a subdiagram into a normal diagram, including the enclosing
 --   context.  Concretely, a subdiagram is a pair of (1) a diagram and
@@ -436,12 +433,15 @@ type instance N (Subdiagram v n m) = n
 --   attributes.  @getSub@ simply applies the transformation and
 --   attributes to the diagram to get the corresponding \"top-level\"
 --   diagram.
--- getSub :: (Metric v, HasLinearMap v, Typeable n, OrderedField n, Semigroup m)
---        => Subdiagram b v n m -> QDiagram v n m
--- getSub = subDia
+getSub :: SubDiagram v n m -> QDiagram v n m
+getSub (SubDiagram sub) = QD (D.subPos sub)
 
--- replaceSub :: (QDiagram v n m -> QDiagram v n m) -> Subdiagram v n m -> QDiagram v n m
--- replaceSub f (Sub d r _) = r (f d)
+-- | Return the full diagram with the subdiagram modified.
+modSub
+  :: (QDiagram v n m -> QDiagram v n m)
+  -> SubDiagram v n m
+  -> QDiagram v n m
+modSub f (SubDiagram sub) = QD $ D.subPeek sub $ coerce f (D.subPos sub)
 
 ------------------------------------------------------------------------
 -- Subdiagram maps
@@ -466,44 +466,11 @@ newtype SubMap v n m = SubMap
 type instance V (SubMap v n m) = v
 type instance N (SubMap v n m) = n
 
--- instance Semigroup (SubMap b v n m) where
---   SubMap s1 <> SubMap s2 = SubMap (s1 <> s2)
+getSubMap :: (HasLinearMap v, OrderedField n, Monoid' m) => QDiagram v n m -> SubMap v n m
+getSubMap (QD d) = SubMap (D.getSubMap d)
 
--- | 'SubMap's form a monoid with the empty map as the identity, and
---   map union as the binary operation.  No information is ever lost:
---   if two maps have the same name in their domain, the resulting map
---   will associate that name to the concatenation of the information
---   associated with that name.
--- instance Monoid (SubMap b v n m) where
---   mempty  = SubMap M.empty
---   mappend = (<>)
-
--- instance (OrderedField n, Metric v, HasLinearMap v, Typeable n)
---       => HasOrigin (SubMap b v n m) where
---   moveOriginTo = over _Wrapped' . moveOriginTo
-
--- instance (OrderedField n, Metric v, HasLinearMap v, Typeable n)
---     => Transformable (SubMap b v n m) where
---   transform = over _Wrapped' . transform
-
--- | 'SubMap's are qualifiable: if @ns@ is a 'SubMap', then @a |>
---   ns@ is the same 'SubMap' except with every name qualified by
---   @a@.
--- instance Qualifiable (SubMap b v n m) where
---   a .>> SubMap m = SubMap $ M.mapKeys (a .>>) m
-
--- | A name acts on a name map by qualifying every name in it.
--- instance Action Name (SubMap b v n m) where
---   act = (.>>)
-
--- instance Action Name a => Action Name (Deletable a) where
---   act n (Deletable l a r) = Deletable l (act n a) r
-
--- Names do not act on other things.
-
--- instance Action Name (Query v n m)
--- instance Action Name (Envelope v n)
--- instance Action Name (Trace v n)
+subLookup :: IsName nm => nm -> SubMap v n m -> [SubDiagram v n m]
+subLookup (toName -> Name nms) (SubMap m) = coerce $ D.lookupSub nms m
 
 -- | Look for the given name in a name map, returning a list of
 --   subdiagrams associated with that name.  If no names match the

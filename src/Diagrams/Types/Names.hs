@@ -124,8 +124,8 @@ instance Show AName where
     showString "AName " . showsPrec 11 a
 
 -- XXX temporary instance
-instance Ord AName where
-  compare a b = compare (hash a) (hash b)
+-- instance Ord AName where
+--   compare a b = compare (hash a) (hash b)
 
 -- | Prism onto 'AName'.
 _AName :: (Typeable a, Hashable a, Eq a, Show a) => Prism' AName a
