@@ -71,7 +71,7 @@ data FillRule
     -- XXX add some pics
 
 instance AttributeClass FillRule where
-  type AttrType FillRule = 'SAttr
+  type AttrType FillRule = 'IAttr
 
 instance Semigroup FillRule where
   _ <> b = b

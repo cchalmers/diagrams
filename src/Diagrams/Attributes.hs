@@ -320,7 +320,7 @@ newtype Opacity = Opacity (Product Double)
   deriving (Typeable, Semigroup)
 
 instance AttributeClass Opacity where
-  type AttrType Opacity = 'SAttr
+  type AttrType Opacity = 'IAttr
 
 _Opacity :: Iso' Opacity Double
 _Opacity = coerced
@@ -345,7 +345,7 @@ newtype FillOpacity = FillOpacity (Product Double)
   deriving (Typeable, Semigroup)
 
 instance AttributeClass FillOpacity where
-  type AttrType FillOpacity = 'SAttr
+  type AttrType FillOpacity = 'IAttr
 
 _FillOpacity :: Iso' FillOpacity Double
 _FillOpacity = coerced
@@ -370,7 +370,7 @@ newtype StrokeOpacity = StrokeOpacity (Product Double)
   deriving (Typeable, Semigroup)
 
 instance AttributeClass StrokeOpacity where
-  type AttrType StrokeOpacity = 'SAttr
+  type AttrType StrokeOpacity = 'IAttr
 
 _StrokeOpacity :: Iso' StrokeOpacity Double
 _StrokeOpacity = coerced
@@ -406,7 +406,7 @@ instance Default LineCap where
   def = LineCapButt
 
 instance AttributeClass LineCap where
-  type AttrType LineCap = 'SAttr
+  type AttrType LineCap = 'IAttr
 
 -- | Last semigroup structure.
 instance Semigroup LineCap where
@@ -438,7 +438,7 @@ _LineJoin :: Equality' LineJoin LineJoin
 _LineJoin = id
 
 instance AttributeClass LineJoin where
-  type AttrType LineJoin = 'SAttr
+  type AttrType LineJoin = 'IAttr
 
 -- | Last semigroup structure.
 instance Semigroup LineJoin where
@@ -466,7 +466,7 @@ newtype LineMiterLimit = LineMiterLimit (Last Double)
   deriving (Typeable, Semigroup, Eq, Ord)
 
 instance AttributeClass LineMiterLimit where
-  type AttrType LineMiterLimit = 'SAttr
+  type AttrType LineMiterLimit = 'IAttr
 
 _LineMiterLimit :: Iso' LineMiterLimit Double
 _LineMiterLimit = coerced

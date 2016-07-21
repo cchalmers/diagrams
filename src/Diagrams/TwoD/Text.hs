@@ -163,7 +163,7 @@ _Font = coerced
 {-# INLINE _Font #-}
 
 instance AttributeClass Font where
-  type AttrType Font = 'SAttr
+  type AttrType Font = 'IAttr
 
 -- | Specify a font family to be used for all text within a diagram.
 font :: ApplyStyle a => String -> a -> a
@@ -237,7 +237,7 @@ data FontSlant
   deriving (Eq, Ord, Typeable, Show)
 
 instance AttributeClass FontSlant where
-  type AttrType FontSlant = 'SAttr
+  type AttrType FontSlant = 'IAttr
 
 instance Semigroup FontSlant where
   _ <> b = b
@@ -291,7 +291,7 @@ data FontWeight
   deriving (Eq, Ord, Show, Typeable)
 
 instance AttributeClass FontWeight where
-  type AttrType FontWeight = 'SAttr
+  type AttrType FontWeight = 'IAttr
 
 -- | Last semigroup structure
 instance Semigroup FontWeight where
