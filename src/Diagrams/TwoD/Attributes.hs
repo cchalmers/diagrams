@@ -11,7 +11,6 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -84,22 +83,25 @@ module Diagrams.TwoD.Attributes (
 
   ) where
 
-import           Control.Lens                hiding (transform)
-import           Data.Colour                 hiding (AffineSpace, over)
+import           Control.Lens          hiding (transform)
+import           Data.Colour           hiding (AffineSpace, over)
 import           Data.Data
 import           Data.Default.Class
+import qualified Data.Foldable         as F
 import           Data.Semigroup
-import qualified Data.Sequence  as Seq
+import qualified Data.Sequence         as Seq
 
+import           Geometry.Path.Unboxed
+import           Geometry.Query
 import           Geometry.Space
 import           Geometry.Transform
+import           Geometry.TwoD.Path    (isInsideWinding)
 import           Geometry.TwoD.Types
-import           Geometry.Path.Unboxed
 
 import           Diagrams.Attributes
 import           Diagrams.Types
 
-import Data.Coerce
+import           Data.Coerce
 
 -----------------------------------------------------------------------------
 -- Gradients
@@ -508,6 +510,12 @@ type instance N Clip = Double
 instance Transformable Clip where
   transform = over _Clip . transform
   {-# INLINE transform #-}
+
+-- | A point inside a clip if the point is in 'All' invididual clipping
+--   paths.
+instance HasQuery Clip All where
+  getQuery (Clip paths) = Query $ \p ->
+    F.foldMap (All . flip isInsideWinding p) paths
 
 instance AnnotationClass Clip where
   type AnnotType Clip = 'TAnnot
