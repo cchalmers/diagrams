@@ -68,7 +68,7 @@ module Diagrams.TwoD.Attributes (
 
   -- ** Fill color
   , fillColor, fc, fcA
-  , recommendFillColor
+  , backupFillColor
 
   -- * Annotations
   -- ** Clip
@@ -475,14 +475,13 @@ _fillTexture = style . atAttr _FillTexture
 fillColor :: (InSpace V2 Double a, Color c, ApplyStyle a) => c -> a -> a
 fillColor = fillTexture . SomeColor
 
--- | Set a \"recommended\" fill color, to be used only if no explicit
+-- | Set a \"backup\" fill color, to be used only if no explicit
 --   calls to 'fillColor' (or 'fc', or 'fcA') are used.
 --   See comment after 'fillColor' about backends.
-recommendFillColor
+backupFillColor
   :: (InSpace V2 Double a, Color c, ApplyStyle a)
   => c -> a -> a
-recommendFillColor c = applyStyle $
-  mempty & backupAttr _FillTexture ?~ toTexture (SomeColor c)
+backupFillColor = applyBackupAttr _FillTexture . toTexture . SomeColor
 
 -- | A synonym for 'fillColor', specialized to @'Colour' Double@
 --   (i.e. opaque colors). See comment after 'fillColor' about backends.
