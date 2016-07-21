@@ -51,10 +51,12 @@ module Diagrams.Types.Style
     -- ** Attibute lenses
   , atAttr
   , backupAttr
+  , priorityAttr
 
     -- ** Applying styles
   , applyAttr
   , applyBackupAttr
+  , applyPriorityAttr
   , attributeToStyle
 
   , ApplyStyle (..)
@@ -354,7 +356,7 @@ singFor _ = sing
 
 -- | Internal wrapper for backup attributes.
 newtype Backup a = Backup a
-  deriving (Show, Num, Transformable)
+  deriving (Typeable, Transformable, Semigroup)
 
 type instance V (Backup a) = V a
 type instance N (Backup a) = N a
@@ -365,10 +367,6 @@ instance AttributeClass a => AttributeClass (Backup a) where
 _Backup :: Iso' (Backup a) a
 _Backup = coerced
 {-# INLINE _Backup #-}
-
-instance Semigroup a => Semigroup (Backup a) where
-  (<>) = coerce ((<>) :: a -> a -> a)
-  {-# INLINE (<>) #-}
 
 -- | Similar to 'atAttr' but for backup attributes. These are attributes
 --   that are only used if the attribute is not otherwise set (before or
@@ -386,6 +384,35 @@ backupAttr l = case singFor l of
 -- for debugging). Annoyingly, ghc can only infer
 -- AttributeSpace (Backup a) v n :- AttributeSpace a v n
 -- if the AttrType is known.
+
+-- Priority styles -----------------------------------------------------
+
+-- | Internal wrapper for backup attributes.
+newtype Priority a = Priority a
+  deriving (Typeable, Transformable, Semigroup)
+
+type instance V (Priority a) = V a
+type instance N (Priority a) = N a
+
+instance AttributeClass a => AttributeClass (Priority a) where
+  type AttrType (Priority a) = AttrType a
+
+_Priority :: Iso' (Priority a) a
+_Priority = coerced
+{-# INLINE _Priority #-}
+
+-- | Similar to 'atAttr' but for priority attributes. These override
+--   existing attributes
+--
+--   are only used if the attribute is not otherwise set (before or
+--   after setting an priority attr).
+priorityAttr :: AttributeSpace a v n => AnIso' a r -> Lens' (Style v n) (Maybe (Rep a n r))
+priorityAttr l = case singFor l of
+  I -> atAttr (_Priority . l)
+  M -> atAttr (_Priority . l)
+  T -> atAttr (_Priority . l)
+{-# INLINE priorityAttr #-}
+
 
 -- Applying styles -----------------------------------------------------
 
@@ -425,13 +452,27 @@ applyAttr :: (AttributeSpace a (V d) (N d), ApplyStyle d)
 applyAttr l = applyStyle . attrToStyle l
 {-# INLINE applyAttr #-}
 
-applyBackupAttr :: (AttributeSpace a (V d) (N d), ApplyStyle d)
-          => AReview a r -> Rep a (N d) r -> d -> d
+-- | Apply a backup attribute. These get used only if no other
+--   attributes are set.
+applyBackupAttr
+  :: (AttributeSpace a (V d) (N d), ApplyStyle d)
+  => AReview a r -> Rep a (N d) r -> d -> d
 applyBackupAttr l = case singFor l of
   I -> applyAttr (_Backup . l)
   M -> applyAttr (_Backup . l)
   T -> applyAttr (_Backup . l)
 {-# INLINE applyBackupAttr #-}
+
+-- | Apply a backup attribute. These override standard and backup
+--   attributes if present.
+applyPriorityAttr
+  :: (AttributeSpace a (V d) (N d), ApplyStyle d)
+  => AReview a r -> Rep a (N d) r -> d -> d
+applyPriorityAttr l = case singFor l of
+  I -> applyAttr (_Priority . l)
+  M -> applyAttr (_Priority . l)
+  T -> applyAttr (_Priority . l)
+{-# INLINE applyPriorityAttr #-}
 
 -- | Class of things with a single style.
 class ApplyStyle a => HasStyle a where
@@ -475,11 +516,13 @@ getAttributes g n (Style hm) = RAs (HM.map (readyAttribute g n) hm)
 --   first looks looks
 getAttr :: Typeable a => Getting r a r -> Attributes -> Maybe r
 getAttr g (RAs hm) =
-  case HM.lookup (getterRep g) hm of
+  case HM.lookup (getterRep (_Priority . g)) hm of
     Just a  -> view g <$> fromDynamic a
-    Nothing -> case HM.lookup (getterRep (_Backup . g)) hm of
-      Just a  -> view (_Backup . g) <$> fromDynamic a
-      Nothing -> Nothing
+    Nothing -> case HM.lookup (getterRep g) hm of
+      Just a  -> view g <$> fromDynamic a
+      Nothing -> case HM.lookup (getterRep (_Backup . g)) hm of
+        Just a  -> view (_Backup . g) <$> fromDynamic a
+        Nothing -> Nothing
 {-# INLINE getAttr #-}
 
 getterRep :: forall a s. Typeable s => Getting a s a -> TypeRep
