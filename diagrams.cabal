@@ -17,6 +17,8 @@ library
     Diagrams
     Diagrams.Prelude
     Diagrams.Attributes
+    Diagrams.Animation.Active
+    Diagrams.Animation
     Diagrams.Backend.Compile
     Diagrams.Types.Measure
     Diagrams.Types.Annotations
@@ -24,7 +26,6 @@ library
     Diagrams.Types.Style
     Diagrams.Types
     Diagrams.Util
-    -- Diagrams.Animation.Active
     Diagrams.Backend.CmdLine
     Diagrams.Backend
     Diagrams.TwoD.Attributes
@@ -50,6 +51,7 @@ library
     exceptions,
     transformers,
     constraints,
+    active,
     vector,
     -- active >=0.2 && <0.3,
     linear >=1.20 && <1.21,
