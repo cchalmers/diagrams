@@ -5,7 +5,7 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.TwoD.Model
--- Copyright   :  (c) 2011 diagrams-lib team (see LICENSE)
+-- Copyright   :  (c) 2016 diagrams team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
 --
@@ -30,7 +30,7 @@ module Diagrams.TwoD.Model
   , TraceOpts(..), tracePoints, traceSmoothing
 
     -- * Showing labels of all named subdiagrams
-  -- , showLabels
+  , showLabels
   ) where
 
 -- import           Control.Arrow            (second)
@@ -38,7 +38,7 @@ import           Control.Lens hiding ((#), none)
 -- import           Data.Colour              (Colour)
 import           Data.Colour.Names
 import           Data.Default.Class
--- import           Data.List                (intercalate)
+import           Data.List                (intercalate)
 -- import qualified Data.Map                 as M
 import           Data.Maybe               (catMaybes)
 import           Data.Semigroup
@@ -52,7 +52,7 @@ import           Diagrams.Types
 import           Diagrams.TwoD.Attributes
 import           Data.Monoid.WithSemigroup
 import           Diagrams.TwoD.Path.Unboxed
--- import           Diagrams.TwoD.Text
+import           Diagrams.TwoD.Text
 -- import           Diagrams.TwoD.Transform  (rotateBy)
 -- import           Diagrams.TwoD.Types
 -- import           Diagrams.TwoD.Vector     (unitX)
@@ -90,16 +90,17 @@ showOrigin = showOrigin' def
 
 -- | Mark the origin of a diagram, with control over colour and scale
 -- of marker dot.
-showOrigin' :: Monoid' m
-           => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
-showOrigin' oo d = o <> d
+showOrigin'
+  :: Monoid' m
+  => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
+showOrigin' (OriginOpts sty m) d = o <> d
   where
     o = uStroke (circle sz)
-          # applyStyle (oo^.style)
+          # applyStyle sty
           # lw none
           # fmap (const mempty)
-    V2 w h = undefined -- oo^.oScale *^ size d
-    sz     = maximum [w, h] -- , oo^.oMinSize]
+    -- XXX Completely wrong. We need measured diagrams for this.
+    sz = fromMeasured 0.1 0.1 m
 
 ------------------------------------------------------------------------
 -- Approximating the envelope
@@ -189,7 +190,6 @@ tracePoints f (TraceOpts sty s n) = TraceOpts sty s <$> f n
 traceSmoothing :: Lens' TraceOpts Bool
 traceSmoothing f (TraceOpts sty s n) =  f s <&> \s' -> TraceOpts sty s' n
 
-
 -- instance Floating n => Default (TraceOpts n) where
 --   def = TraceOpts red (1/100) 0.001 64
 
@@ -218,18 +218,16 @@ showTrace = showTrace' def
 -- Labeling named points
 ------------------------------------------------------------------------
 
--- showLabels :: (TypeableFloat n, Renderable (Text n) b, Semigroup m)
---            => QDiagram V2 n m -> QDiagram V2 n Any
--- showLabels d =
---              ( mconcat
---              . map (\(n,p) -> text (simpleName n) # translate (p .-. origin))
---              . concatMap (\(n,ps) -> zip (repeat n) ps)
---              . (map . second . map) location
---              . M.assocs
---              $ m
---              ) <>
---              fmap (const (Any False)) d
---   where
---     SubMap m = d^.subMap
---     simpleName (Name ns) = intercalate " .> " $ map simpleAName ns
---     simpleAName (AName n) = show n
+mkLabels
+  :: (TypeableFloat n, Monoid' m)
+  => (String -> QDiagram V2 n m) -> QDiagram V2 n m -> QDiagram V2 n m
+mkLabels f d = foldMap mkLabel (allSubs d) where
+  mkLabel (nm, sub) = f (prettyName nm) # moveTo (subLocation sub)
+
+-- | Show the labels in a diagram.
+showLabels :: Diagram V2 -> Diagram V2
+showLabels d = mkLabels text d <> d
+
+-- | Display a name without the \"toName\" prefix for singular names.
+prettyName :: Name -> String
+prettyName (Name ns) = intercalate " .> " $ map (\(AName n) -> show n) ns

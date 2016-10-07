@@ -28,9 +28,7 @@ module Diagrams.Combinators
     -- * n-ary operations
   , appends
   , position, atPoints
-  , cat , cat'
-  , CatOpts(_catMethod, _sep), catMethod, sep
-  , CatMethod(..)
+  , cat, sep, sepEven
   ) where
 
 import Control.Lens hiding (beside)
@@ -61,21 +59,23 @@ import Diagrams.Types
 --   > c = circle 0.8
 --   > withEnvelopeEx = sqNewEnv # centerXY # pad 1.5
 withEnvelope
-  :: (InSpace v n a, Monoid' m, Enveloped a)
+  :: (InSpace v n a, Enveloped a)
   => a -> QDiagram v n m -> QDiagram v n m
-withEnvelope = setEnvelope . getEnvelope
+withEnvelope = modEnvelope . const . getEnvelope
 {-# INLINE withEnvelope #-}
 
 -- | Use the trace from some object as the trace for a diagram, in
 --   place of the diagram's default trace.
-withTrace :: (InSpace v n a, OrderedField n, Monoid' m, Traced a)
+withTrace :: (InSpace v n a, Traced a)
           => a -> QDiagram v n m -> QDiagram v n m
-withTrace = setTrace . getTrace
+withTrace = modTrace . const . getTrace
 {-# INLINE withTrace #-}
 
 -- | @phantom x@ produces a \"phantom\" diagram, which has the same
 --   envelope and trace as @x@ but produces no output.
-phantom :: (InSpace v n a, Enveloped a, Traced a, Monoid' m) => a -> QDiagram v n m
+phantom
+  :: (InSpace v n a, Enveloped a, Traced a, Monoid' m)
+  => a -> QDiagram v n m
 phantom a = upDiagram $
   mempty & upEnvelope .~ getEnvelope a
          & upTrace    .~ getTrace a
@@ -87,19 +87,17 @@ phantom a = upDiagram $
 --   origin, so if the origin is not centered the padding may appear
 --   \"uneven\".  If this is not desired, the origin can be centered
 --   (using, e.g., 'centerXY' for 2D diagrams) before applying @pad@.
-pad :: (HasLinearMap v, OrderedField n, Monoid' m)
+pad :: (HasLinearMap v, OrderedField n)
     => n -> QDiagram v n m -> QDiagram v n m
-pad s d = withEnvelope (getEnvelope d & scale s) d
+pad s = modEnvelope (scale s)
 {-# INLINE pad #-}
 
 -- | @frame s@ increases the envelope of a diagram by and absolute
 --   amount @s@, s is in the local units of the diagram. This function
 --   is similar to @pad@, only it takes an absolute quantity and
 --   pre-centering should not be necessary.
-frame :: (HasLinearMap v, OrderedField n, Monoid' m)
-      => n -> QDiagram v n m -> QDiagram v n m
-frame s dia = setEnvelope env dia
-  where env = onEnvelope (\f x -> f x + s) (getEnvelope dia)
+frame :: Num n => n -> QDiagram v n m -> QDiagram v n m
+frame s = modEnvelope $ onEnvelope (\f x -> f x + s)
 {-# INLINEABLE [0] frame #-}
 {-# SPECIALISE frame :: Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE frame :: Double -> Diagram V3 -> Diagram V3 #-}
@@ -139,7 +137,7 @@ strut v = upWith (upEnvelope .~ env)
 --   the cosine of the difference in angle, and leaving it unchanged
 --   when this factor is negative.
 extrudeEnvelope
-  :: (HasLinearMap v, OrderedField n, Monoid' m)
+  :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
 extrudeEnvelope = deformEnvelope 0.5
 {-# INLINEABLE [0] extrudeEnvelope #-}
@@ -154,7 +152,7 @@ extrudeEnvelope = deformEnvelope 0.5
 --   Note that this could create strange inverted envelopes, where
 --   @ diameter v d < 0 @.
 intrudeEnvelope
-  :: (HasLinearMap v, OrderedField n, Monoid' m)
+  :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
 intrudeEnvelope = deformEnvelope (-0.5)
 {-# INLINEABLE [0] intrudeEnvelope #-}
@@ -163,11 +161,10 @@ intrudeEnvelope = deformEnvelope (-0.5)
 
 -- Utility for extrudeEnvelope / intrudeEnvelope
 deformEnvelope
-  :: (HasLinearMap v, OrderedField n, Monoid' m)
+  :: (HasLinearMap v, OrderedField n)
   => n -> v n -> QDiagram v n m -> QDiagram v n m
-deformEnvelope s v dia = setEnvelope env dia
+deformEnvelope s v = modEnvelope (onEnvelope deformE)
   where
-    env = onEnvelope deformE (getEnvelope dia)
     deformE f v'
       | dp > 0    = f v' + dp*s
       | otherwise = f v'

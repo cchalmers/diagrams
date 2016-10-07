@@ -70,7 +70,7 @@ import           Diagrams.Types
 
 -- import           Linear.Affine
 
--- | Native images are backend specific image that allow they're own
+-- | Native images are backend specific image that allow their own
 --   format.
 data Native t deriving Typeable
 
@@ -216,7 +216,7 @@ embeddedToExternal path (DImage w h (ImageRaster dyn)) =
       _               -> pure $ Left "jpeg can only encode ImageYcbCr8 images"
 
     ".tiff" -> case dyn of
-      ImageY8  img    -> LB.writeFile path (encodeTiff img) >> exImg
+      ImageY8 img     -> LB.writeFile path (encodeTiff img) >> exImg
       ImageY16 img    -> LB.writeFile path (encodeTiff img) >> exImg
       ImageYA8 img    -> LB.writeFile path (encodeTiff img) >> exImg
       ImageRGB8 img   -> LB.writeFile path (encodeTiff img) >> exImg

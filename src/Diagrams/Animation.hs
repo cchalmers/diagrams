@@ -38,7 +38,6 @@ import           Data.Foldable             (foldMap)
 
 import Geometry
 import Diagrams.Types
-import Data.Monoid.WithSemigroup
 import           Diagrams.Animation.Active ()
 
 -- | A value of type @QAnimation b v m@ is an animation (a
@@ -87,7 +86,7 @@ type Animation v = Active (Diagram v)
 --   See also 'animRect' for help constructing a background to go
 --   behind an animation.
 animEnvelope
-  :: (OrderedField n, HasLinearMap v, Monoid' m)
+  :: (OrderedField n, HasLinearMap v)
   => QAnimation v n m -> QAnimation v n m
 animEnvelope = animEnvelope' 30
 
@@ -96,7 +95,7 @@ animEnvelope = animEnvelope' 30
 --   rates will be faster but less accurate; higher rates are more
 --   accurate but slower.
 animEnvelope'
-  :: (OrderedField n, HasLinearMap v, Monoid' m)
+  :: (OrderedField n, HasLinearMap v)
   => Rational -> QAnimation v n m -> QAnimation v n m
 -- animEnvelope' r a = withEnvelope (simulate r a) <$> a
 animEnvelope' r a = modEnvelope (const . getEnvelope $ simulate r a) <$> a
@@ -109,7 +108,7 @@ animEnvelope' r a = modEnvelope (const . getEnvelope $ simulate r a) <$> a
 --   Uses 30 samples per time unit by default; to adjust this number
 --   see 'animRect''.
 animRect
-  :: (InSpace V2 n t, Monoid' m, TrailLike t)
+  :: (InSpace V2 n t, TrailLike t)
   => QAnimation V2 n m -> t
 animRect = trailLike . animRect' 30
 
@@ -118,7 +117,7 @@ animRect = trailLike . animRect' 30
 --   rates will be faster but less accurate; higher rates are more
 --   accurate but slower.
 animRect'
-  :: (InSpace V2 n t, Monoid' m, TrailLike t)
+  :: (InSpace V2 n t, TrailLike t)
   => Rational -> QAnimation V2 n m -> t
 animRect' r anim =
   case boxTransform (boundingBox results) (fromCorners (-0.5) 0.5) of

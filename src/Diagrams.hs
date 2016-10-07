@@ -16,18 +16,32 @@
 
 module Diagrams
   (
-    -- * Core library
-    -- | The core definitions of transformations, diagrams,
-    --   backends, and so on.
-    -- module Diagrams.Core
+    -- * Core types
+    QDiagram
+  , Diagram
+  , Name
+
+    -- ** Measures
+  , Measured
+  , Measure
+  , output
+  , local
+  , global
+  , normalized
+  , normalised
+  , atLeast
+  , atMost
 
     -- * Standard library
 
     -- | Attributes (color, line style, etc.) and styles.
-    module Diagrams.Attributes
+  , module Diagrams.Attributes
+
+  , module Diagrams.TwoD.Attributes
+  , module Diagrams.TwoD.Path.Unboxed
 
     -- | Alignment of diagrams relative to their envelopes.
-  , module Geometry.Align
+  -- , module Geometry.Align
 
     -- | Creating and using bounding boxes.
   , module Geometry.BoundingBox
@@ -58,7 +72,7 @@ module Diagrams
   , module Geometry.TrailLike
 
     -- | Paths.
-  , module Geometry.Path
+  -- , module Geometry.Path
 
     -- | Cubic splines.
   -- , module Diagrams.CubicSpline
@@ -110,22 +124,21 @@ module Diagrams
   , module Diagrams.TwoD.Model
 
   , module Diagrams.TwoD.Path.Unboxed
-  , module Diagrams.TwoD.Attributes
 
     -- | Extra things for three-dimensional diagrams.
   -- , module Diagrams.ThreeD
 
     -- | Tools for making animations.
-  -- , module Diagrams.Animation
+  , module Diagrams.Animation
 
     -- | Various utility definitions.
   , module Diagrams.Util
 
   ) where
 
-import           Geometry.Align
+-- import           Geometry.Align
 import           Geometry.Angle
--- import           Diagrams.Animation
+import           Diagrams.Animation
 import           Diagrams.Attributes
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Path.Unboxed
@@ -141,7 +154,7 @@ import           Geometry.Envelope
 import           Geometry.Located
 import           Geometry.Parametric
 -- import           Diagrams.Parametric.Adjust
-import           Geometry.Path              hiding (pathPoints)
+import           Geometry.Path.Unboxed ()
 import           Geometry.Points
 import           Geometry.Query
 import           Geometry.Segment
@@ -155,4 +168,8 @@ import           Geometry.TrailLike
 import           Geometry.Transform
 -- import           Diagrams.TwoD
 import           Diagrams.Util
+
+import Diagrams.Types
+
+-- import Diagrams.TwoD.Path.Unboxed (uStroke)
 

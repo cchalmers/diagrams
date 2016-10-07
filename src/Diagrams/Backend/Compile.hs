@@ -34,7 +34,6 @@ import           Control.Lens              hiding (transform)
 import qualified Data.Foldable             as F
 import           Data.Monoid.Coproduct
 import qualified Data.Monoid as            M
-import           Data.Tree.DUAL.Label      (foldDUAL)
 import           Data.Typeable
 
 import           Geometry.Envelope    (size)
@@ -44,6 +43,7 @@ import           Geometry.Path (Path)
 import           Geometry.Path.Unboxed (UPath)
 
 import           Diagrams.Types
+import           Diagrams.Types.Tree (foldDUAL)
 
 import Diagrams.TwoD.Image (DImage, Embedded, External)
 import Diagrams.TwoD.Text (Text)
@@ -75,7 +75,7 @@ foldDiaWithScales primF aF g n (QD dual) = foldDUAL lF aF dual
 
 -- | Simple way to fold a diagram into a monoidal result.
 foldDia
-  :: (HasLinearMap v, OrderedField n, M.Monoid r)
+  :: (HasLinearMap v, OrderedField n, Monoid r)
   => (Transformation v n -> Attributes -> Prim v n -> r) -- ^ Fold a prim
   -> (Annotation v n -> r -> r)   -- ^ Apply an annotation
   -> Transformation v n           -- ^ final transform for diagram

@@ -37,9 +37,12 @@ module Diagrams.Types.Annotations
     -- ** Up annotations
     UpAnnots (..)
   , emptyUp
-  , upEnvelope, upEnvelopeD
-  , upTrace, upTraceD
+  , upEnvelope
+  , upTrace
   , upQuery
+
+   -- * Up modify
+  , UpModify (..)
 
     -- * Down annotations
   , DownAnnots
@@ -58,8 +61,9 @@ import           Control.Lens              hiding (transform) -- (Lens', Prism',
 import           Data.Semigroup
 import           Data.Typeable
 
+import           Data.Monoid.Action
 import           Data.Monoid.Coproduct
-import           Data.Monoid.Deletable
+-- import           Data.Monoid.Deletable
 -- import           Data.Monoid.WithSemigroup
 
 -- import           Geometry.Align
@@ -101,8 +105,8 @@ import           Linear.Metric
 --
 --   * query functions (see "Diagrams.Core.Query")
 data UpAnnots v n m = UpAnnots
-  (Deletable (Envelope v n))
-  (Deletable (Trace v n))
+  (Envelope v n)
+  (Trace v n)
   (Query v n m)
 -- Envelope and trace are 'Deleteable' so we can replace them. Just
 -- replacing the top level up annotation isn't enough because we want to
@@ -128,8 +132,8 @@ instance Functor (UpAnnots v n) where
 emptyUp :: Monoid m => UpAnnots v n m
 emptyUp =
   UpAnnots
-    (toDeletable EmptyEnvelope)
-    (toDeletable (Trace $ \_ _ -> unsafeMkSortedList []))
+    EmptyEnvelope
+    (Trace $ \_ _ -> unsafeMkSortedList [])
     mempty
 {-# INLINE emptyUp #-}
 
@@ -138,10 +142,6 @@ instance (Ord n, Semigroup m, Monoid m) => Monoid (UpAnnots v n m) where
   {-# INLINE mempty  #-}
   mappend = (<>)
   {-# INLINE mappend #-}
-
-deletable :: Lens' (Deletable a) a
-deletable f (Deletable a x b) = f x <&> \x' -> Deletable a x' b
-{-# INLINE deletable #-}
 
 -- note that lenses to envelope and trace for a diagram would not be
 -- lawful, namely the functor law:
@@ -152,26 +152,35 @@ deletable f (Deletable a x b) = f x <&> \x' -> Deletable a x' b
 
 -- | Lens onto the envelope of an up annotation.
 upEnvelope :: Lens' (UpAnnots v n m) (Envelope v n)
-upEnvelope = upEnvelopeD . deletable
+upEnvelope f (UpAnnots e t q) = f e <&> \e' -> UpAnnots e' t q
 {-# INLINE upEnvelope #-}
-
-upEnvelopeD :: Lens' (UpAnnots v n m) (Deletable (Envelope v n))
-upEnvelopeD f (UpAnnots e t q) = f e <&> \e' -> UpAnnots e' t q
-{-# INLINE upEnvelopeD #-}
 
 -- | Lens onto the envelope of an up annotation.
 upTrace :: Lens' (UpAnnots v n m) (Trace v n)
-upTrace = upTraceD . deletable
+upTrace f (UpAnnots e t q) = f t <&> \t' -> UpAnnots e t' q
 {-# INLINE upTrace #-}
-
-upTraceD :: Lens' (UpAnnots v n m) (Deletable (Trace v n))
-upTraceD f (UpAnnots e t q) = f t <&> \t' -> UpAnnots e t' q
-{-# INLINE upTraceD #-}
 
 -- | Lens onto the envelope of an up annotation.
 upQuery :: Lens (UpAnnots v n m) (UpAnnots v n m') (Query v n m) (Query v n m')
 upQuery f (UpAnnots e t q) = f q <&> \q' -> UpAnnots e t q'
 {-# INLINE upQuery #-}
+
+-- Up modifier ---------------------------------------------------------
+
+-- | Modifications to the envelope or trace of the diagram below.
+data UpModify v n
+  = EnvMod (Envelope v n -> Envelope v n)
+  | TraceMod (Trace v n -> Trace v n)
+
+instance (HasLinearMap v, OrderedField n) => Action (DownAnnots v n) (UpModify v n) where
+  act d = \case
+    EnvMod f   -> EnvMod   $ transform t . f . transform (inv t)
+    TraceMod f -> TraceMod $ transform t . f . transform (inv t)
+    where t = killR d
+
+instance Action (UpModify v n) (UpAnnots v n m) where
+  act (EnvMod f) = upEnvelope %~ f
+  act (TraceMod f) = upTrace %~ f
 
 -- Down annotations ----------------------------------------------------
 
@@ -265,47 +274,4 @@ fromAnnot ar = \case
   where
     eq :: Typeable a' => a' -> Maybe (a' :~: a)
     eq _ = eqT
-
--- Specific annotations ------------------------------------------------
-
--- newtype Href = Href String
-
--- _Href :: Iso' Href String
--- _Href = coerced
-
--- newtype OpacityGroup = OpacityGroup String
-
--- _OpacityGroup :: Iso' OpacityGroup Double
--- _OpacityGroup = coerced
-
--- opacityGroup :: Double -> QDiagram v n m -> QDiagram v n m
--- opacityGroup = applyAnnot _OpacityGroup
-
--- renderAnnot annot
---   | Just o <- getAnnot _OpacityGroup annot
-
---   = Href String    -- ^ Hyperlink
---   | OpacityGroup Double
-
--- -- | Static annotations which can be placed at a particular node of a
--- --   diagram tree.
--- data Annotation v n
---   = Href String    -- ^ Hyperlink
---   | OpacityGroup Double
---   | Shading (QDiagram v n Any)
---   | AClip !(Transformation v n) (Seq (UPath v n))
---      -- The transformation gets applied the same time as rendering.
-
--- | The shading diagram gets tranformed.
--- instance (Metric v, HasLinearMap v, OrderedField n)
---     => Transformable (Annotation v n) where
---   transform t = \case
---     Shading dia -> Shading (transform t dia)
---     AClip t0 ps -> AClip (t <> t0) ps
---     a           -> a
-
--- I don't think we want any styles to be applied to the shading
--- diagram.
--- instance ApplyStyle (Annotation v n) where
---   applyStyle _ = id
 

@@ -49,8 +49,8 @@ import Geometry.Trail
 import Geometry.Query
 import Geometry.Space
 import Geometry.Located
-import Geometry.Points
-import Linear ((^*))
+-- import Geometry.Points
+-- import Linear ((^*))
 
 import Linear.Affine (Point)
 
@@ -298,22 +298,22 @@ clipBy = applyAttr _Clip . (:[])
 --   within the original diagram.
 clipTo :: TypeableFloat n
   => Path V2 n -> QDiagram V2 n Any -> QDiagram V2 n Any
-clipTo p d = setTrace intersectionTrace . toEnvelope $ clipBy p d
-  where
-    envP = appEnvelope . getEnvelope $ p
-    envD = appEnvelope . getEnvelope $ d
-    toEnvelope = case (envP, envD) of
-      (Just eP, Just eD) -> setEnvelope . mkEnvelope $ \v -> min (eP v) (eD v)
-      (_, _)             -> id
-    intersectionTrace = Trace traceIntersections
-    traceIntersections pt v =
-        -- on boundary of d, inside p
-        onSortedList (filter pInside) (appTrace (getTrace d) pt v) <>
-        -- or on boundary of p, inside d
-        onSortedList (filter dInside) (appTrace (getTrace p) pt v) where
-          newPt dist = pt .+^ v ^* dist
-          pInside dDist = runFillRule Winding p (newPt dDist)
-          dInside pDist = getAny . sample d $ newPt pDist
+clipTo = clipped -- p d = setTrace intersectionTrace . toEnvelope $ clipBy p d
+  -- where
+  --   envP = appEnvelope . getEnvelope $ p
+  --   envD = appEnvelope . getEnvelope $ d
+  --   toEnvelope = case (envP, envD) of
+  --     (Just eP, Just eD) -> setEnvelope . mkEnvelope $ \v -> min (eP v) (eD v)
+  --     (_, _)             -> id
+  --   intersectionTrace = Trace traceIntersections
+  --   traceIntersections pt v =
+  --       -- on boundary of d, inside p
+  --       onSortedList (filter pInside) (appTrace (getTrace d) pt v) <>
+  --       -- or on boundary of p, inside d
+  --       onSortedList (filter dInside) (appTrace (getTrace p) pt v) where
+  --         newPt dist = pt .+^ v ^* dist
+  --         pInside dDist = runFillRule Winding p (newPt dDist)
+  --         dInside pDist = getAny . sample d $ newPt pDist
 
 -- | Clip a diagram to the clip path taking the envelope and trace of the clip
 --   path.

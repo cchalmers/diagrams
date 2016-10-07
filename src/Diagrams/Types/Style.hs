@@ -124,7 +124,7 @@ type family Attribute' k a (v :: * -> *) n :: Constraint where
   Attribute' 'MAttr a v n = (AttrType a ~ 'MAttr)
   Attribute' 'TAttr a v n = (InSpace v n a, Transformable a, AttrType a ~ 'TAttr)
 
--- | The constraint on for an attribute.
+-- | The constraint for an attribute.
 --
 --  @
 --  'AttrType' a ~ 'IAttr' => 'AttributeSpace' a v n = 'AttributeClass' a
@@ -132,8 +132,8 @@ type family Attribute' k a (v :: * -> *) n :: Constraint where
 --  'AttrType' a ~ 'TAttr' => 'AttributeSpace' a v n = ('AttributeClass' a, 'InSpace' a v n, 'Transformable' a)
 --  @
 type AttributeSpace a v n = (AttributeClass a, Attribute' (AttrType a) a v n, SingAttr (AttrType a))
--- Not that Attribute class does not mention v or n so we can't have
--- this a superclass of AttributeClass.
+-- Note that Attribute class does not mention v or n so we can't have
+-- AttributeSpace as a superclass of AttributeClass.
 
 -- | Every attribute must be an instance of @AttributeClass@  The
 --   'Semigroup' instance for an attribute determines how it will combine
@@ -196,7 +196,7 @@ instance Show (Attribute v n) where
 
 -- | 'TAttribute's are transformed directly, 'MAttribute's have their
 --   local scale multiplied by the average scale of the transform.
---   Static 'Attribute's are unaffected.
+--   Inert 'Attribute's are unaffected.
 instance (Additive v, Traversable v, Floating n) => Transformable (Attribute v n) where
   transform _ (IAttribute a) = IAttribute a
   transform t (MAttribute a) = MAttribute $ scaleLocal (avgScale t) a
@@ -387,7 +387,7 @@ backupAttr l = case singFor l of
 
 -- Priority styles -----------------------------------------------------
 
--- | Internal wrapper for backup attributes.
+-- | Internal wrapper for prioity attributes.
 newtype Priority a = Priority a
   deriving (Typeable, Transformable, Semigroup)
 

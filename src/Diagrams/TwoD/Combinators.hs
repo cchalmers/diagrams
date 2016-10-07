@@ -21,8 +21,8 @@ module Diagrams.TwoD.Combinators
     (===), (|||)
 
     -- * n-ary combinators
-  , hcat, hcat', hsep
-  , vcat, vcat', vsep
+  , hcat, hsep, hsepEven
+  , vcat, vsep, vsepEven
 
     -- * Spacing/envelopes
   , strutR2
@@ -136,7 +136,7 @@ padY s d = withEnvelope (scaleY s $ getEnvelope d) d
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeLeft
-  :: (OrderedField n, Monoid' m)
+  :: OrderedField n
   => n
   -> QDiagram V2 n m
   -> QDiagram V2 n m
@@ -151,7 +151,7 @@ extrudeLeft s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeRight
-  :: (OrderedField n, Monoid' m)
+  :: OrderedField n
   => n
   -> QDiagram V2 n m
   -> QDiagram V2 n m
@@ -165,7 +165,7 @@ extrudeRight s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeBottom
-  :: (OrderedField n, Monoid' m)
+  :: OrderedField n
   => n
   -> QDiagram V2 n m
   -> QDiagram V2 n m
@@ -179,7 +179,7 @@ extrudeBottom s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeTop
-  :: (OrderedField n, Monoid' m)
+  :: OrderedField n
   => n
   -> QDiagram V2 n m
   -> QDiagram V2 n m
@@ -192,8 +192,9 @@ extrudeTop s
 --   at @p .+^ v@.  Useful for selecting the rectangular portion of a
 --   diagram which should actually be \"viewed\" in the final render, if
 --   you don't want to see the entire diagram.
-rectEnvelope :: forall n m. (OrderedField n, Monoid' m)
-     => Point V2 n -> V2 n -> QDiagram V2 n m -> QDiagram V2 n m
+rectEnvelope
+  :: forall n m. OrderedField n
+  => Point V2 n -> V2 n -> QDiagram V2 n m -> QDiagram V2 n m
 rectEnvelope p (V2 w h) = withEnvelope (rect w h # alignBL # moveTo p :: Path V2 n)
 
 -- | Construct a bounding rectangle for an enveloped object, that is,

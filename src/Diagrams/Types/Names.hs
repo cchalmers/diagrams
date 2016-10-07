@@ -113,19 +113,9 @@ instance Hashable AName where
   hashWithSalt s (AName a) = hashWithSalt s a
   {-# INLINE hashWithSalt #-}
 
--- instance Ord AName where
---   AName a1 `compare` AName a2 =
---     case cast a2 of
---       Just a2' -> hash a1 `compare` hash a2'
---       Nothing  -> typeOf a1 `compare` typeOf a2
-
 instance Show AName where
   showsPrec d (AName a) = showParen (d > 10) $
     showString "AName " . showsPrec 11 a
-
--- XXX temporary instance
--- instance Ord AName where
---   compare a b = compare (hash a) (hash b)
 
 -- | Prism onto 'AName'.
 _AName :: (Typeable a, Hashable a, Eq a, Show a) => Prism' AName a

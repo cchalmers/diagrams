@@ -156,24 +156,24 @@ lineWidth = applyAttr _LineWidth
 lw :: (N a ~ n, ApplyStyle a, Typeable n) => Measure n -> a -> a
 lw = lineWidth
 
--- | A convenient synonym for 'lineWidth (global w)'.
+-- | A convenient synonym for @'lineWidth' ('global' w)@.
 lwG :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
 lwG = lw . global
 
--- | A convenient synonym for 'lineWidth (normalized w)'.
+-- | A convenient synonym for @'lineWidth' ('normalized' w)@.
 lwN :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
 lwN = lw . normalized
 
--- | A convenient synonym for 'lineWidth (output w)'.
+-- | A convenient synonym for @'lineWidth' ('output' w)@.
 lwO :: (N a ~ n, ApplyStyle a, Typeable n) => n -> a -> a
 lwO = lw . output
 
--- | A convenient sysnonym for 'lineWidth (local w)'.
+-- | A convenient sysnonym for @'lineWidth' ('local' w)@.
 lwL :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
 lwL = lw . local
 
 -- | Lens onto a measured line width in a style.
-_lineWidth, _lw :: Typeable (N a) => HasStyle a => Lens' a (Maybe (Measure (N a)))
+_lineWidth, _lw :: (Typeable (N a), HasStyle a) => Lens' a (Maybe (Measure (N a)))
 _lineWidth = style . atAttr _LineWidth
 _lw = _lineWidth
 

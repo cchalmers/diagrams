@@ -109,7 +109,7 @@ import Geometry.Size
 import Geometry.TwoD.Size
 import Geometry.TwoD.Types
 --
--- import           Diagrams.Animation
+import           Diagrams.Animation
 import           Diagrams.Attributes
 import           Diagrams.Types
 import           Diagrams.Util
@@ -347,7 +347,7 @@ instance ToResult [QDiagram v n Any]
 instance ToResult [(String, QDiagram v n Any)]
 
 -- | An animation is another suitable base case.
--- instance ToResult (Animation v n)
+instance ToResult (Animation v)
 
 -- | Diagrams that require IO to build are a base case.
 instance ToResult d => ToResult (IO d) where

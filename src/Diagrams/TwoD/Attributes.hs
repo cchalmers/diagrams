@@ -501,8 +501,11 @@ fcA = fillColor
 
 -- Clip ----------------------------------------------------------------
 
+-- | A clip is a list of paths that make up the clip.
 newtype Clip = Clip (Seq.Seq (UPath V2 Double))
   deriving (Semigroup, Monoid, Typeable)
+-- Note: It is possible to represent a clip as a single path by taking
+-- the intersection of each path, but this seems simpler.
 
 type instance V Clip = V2
 type instance N Clip = Double
@@ -511,7 +514,7 @@ instance Transformable Clip where
   transform = over _Clip . transform
   {-# INLINE transform #-}
 
--- | A point inside a clip if the point is in 'All' invididual clipping
+-- | A point inside a clip if the point is in 'All' individual clipping
 --   paths.
 instance HasQuery Clip All where
   getQuery (Clip paths) = Query $ \p ->
@@ -534,15 +537,13 @@ multiClip = applyAnnot _Clip
 
 -- Shading -------------------------------------------------------------
 
+-- | A shading is using the luminosity of the one diagram as the alpha
+--   channel for the other.
 newtype Shading = Shading (Diagram V2)
-  deriving (Semigroup, Monoid, Typeable)
+  deriving (Semigroup, Monoid, Typeable, Transformable)
 
 type instance V Shading = V2
 type instance N Shading = Double
-
-instance Transformable Shading where
-  transform = over _Shading . transform
-  {-# INLINE transform #-}
 
 instance AnnotationClass Shading where
   type AnnotType Shading = 'TAnnot
@@ -551,6 +552,10 @@ _Shading :: Iso' Shading (Diagram V2)
 _Shading = coerced
 {-# INLINE _Shading #-}
 
+-- | @'shading' a b@ using the luminosity of diagram @a@ as the alpha
+--   channel for diagram @b@.
+--
+--   Not supported on all backends.
 shading :: Diagram V2 -> Diagram V2 -> Diagram V2
 shading = applyAnnot _Shading
 {-# INLINE shading #-}
