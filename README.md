@@ -58,6 +58,8 @@ Other possible changes:
 
   - Limit diagrams back to double again? The geometry library would
     still allow any number type for better precision etc. but I can't
-    think of any reason to anything but double for a diagram.
+    think of any reason to anything but double for a diagram. I've
+    already limited a bunch of things to double (`ToTexture`, `Backend`)
+    and it makes things much easier.
 
 [`dual-tree`](https://github.com/diagrams/dual-tree)
