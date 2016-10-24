@@ -1,19 +1,20 @@
-### diagrams
+## diagrams
 
 Proposed rewrite for the diagrams library. Currently at a proof of
 concept stage. The main focus of the rewrite is trying to make things
 simpler and faster while adding some extra features.
 
-#### Reshuffling
+### Reshuffling
 
 `diagrams-core` and `diagrams-lib` would no longer be used. `diagrams`
-and [`geometry`] would be used instead. The advantage is that
-[`geometry`] could be used by other libraries that don't want to depend
-on diagrams (whereas `diagrams-core` is only used by diagrams). Many of
+and [`geometry`] would be used instead. [`geometry`] is a geomerty
+library based on `diagrams-lib`. The advantage is that [`geometry`]
+could be used by other libraries that don't want to depend on diagrams
+(whereas `diagrams-core` can only be used by `diagrams-lib`). Many of
 the old core modules have moved to `Diagrams.Types.X`. The functionality
 of `dual-tree` has been moved to `Diagrams.Types.Tree`.
 
-#### Changes
+### Changes
 
 Some of the major proposed changes include:
 
@@ -22,7 +23,7 @@ Some of the major proposed changes include:
     class has also changed significantly. This should hopefully make
     working with multiple backends at the same time much easier.
 
-  - Named subdiagram traversals. You can traversal over diagrams
+  - Named subdiagram traversals! You can traversal over diagrams
     that matching or include a name. The way diagrams are named has also
     changed significantly. It's also possible to traverse over styles
     and primitives (like paths etc.).
@@ -62,4 +63,5 @@ Other possible changes:
     already limited a bunch of things to double (`ToTexture`, `Backend`)
     and it makes things much easier.
 
-[`dual-tree`](https://github.com/diagrams/dual-tree)
+[`dual-tree`]: (https://github.com/diagrams/dual-tree)
+[`geometry`]: (https://github.com/cchalmers/geometry)
