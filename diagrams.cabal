@@ -23,6 +23,7 @@ library
     Diagrams.Types.Measure
     Diagrams.Types.Annotations
     Diagrams.Types.Names
+    Diagrams.Types.Tree
     Diagrams.Types.Style
     Diagrams.Types
     Diagrams.Util
