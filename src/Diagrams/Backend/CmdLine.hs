@@ -1,17 +1,20 @@
-{-# LANGUAGE ConstrainedClassMethods     #-}
-{-# LANGUAGE DefaultSignatures     #-}
+{-# LANGUAGE ConstrainedClassMethods   #-}
+{-# LANGUAGE DefaultSignatures         #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE FunctionalDependencies    #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TemplateHaskell           #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Backend.CmdLine
--- Copyright   :  (c) 20132016 diagrams team (see LICENSE)
+-- Copyright   :  (c) 2013-2016 diagrams team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
 --
@@ -30,72 +33,55 @@
 module Diagrams.Backend.CmdLine
   (
 
-    -- * Options
-
-    -- ** Standard options
-    DiagramOpts(..)
-  -- , diagramOpts
-  -- , output
-
-    -- ** Multi-diagram options
-  , OutputPath(..)
-  , PickBackend(..)
-  , DiagramMultiOpts(..)
-  -- , diagramMultiOpts
-  -- , selection
-  -- , list
-
-    -- ** Animation options
-  , DiagramAnimOpts(..)
-  -- , diagramAnimOpts
-  -- , fpu
-
-    -- ** Loop options
-  , DiagramLoopOpts(..)
-  -- , diagramLoopOpts
-  -- , loop
-  -- , src
-  -- , interval
-
-    -- * Parsing
-  , Parseable(..)
-  , readHexColor
-
     -- * Command-line programs (@Mainable@)
     -- ** Arguments, rendering, and entry point
-  , Mainable(..)
+    Mainable
+  , mainable
 
-    -- ** General currying
-  , ToResult(..)
+  , MainWith
+  , mainWith
 
-    -- ** helper functions for implementing @mainRender@
-  -- , defaultAnimMainRender
-  , defaultMultiMainRender
-  , defaultLoopRender
+    -- ** Looping
+  , loopMainWith
+
+  , RenderOutcome (..)
+  , WithOutcome (..)
+
+  -- * Helpers
+  , defaultExecParser
+  , helper'
+  , DiagramLoopOpts(..)
+
+    -- ** Parsers
+  , fpuParser
+  , outputParser
+  , sizeParser
+  , loopOptsParser
+
+    -- * Argument parsing
+  , Parseable (..)
+  , readHexColor
+
   ) where
 
--- import           Control.Lens              (Lens', (&), (.~), (^.))
-import           Options.Applicative
-import           Options.Applicative.Types (readerAsk)
+import           Control.Concurrent        (threadDelay)
 import           Control.Monad             (forever, unless, when)
--- import           Text.Printf
--- import           Data.Active               hiding (interval)
 import           Data.Char                 (isDigit)
 import           Data.Colour
 import           Data.Colour.Names
 import           Data.Colour.SRGB
 import           Data.Data
+import           Data.Functor.Identity
 import           Data.IORef
 import           Data.List                 (delete)
 import           Data.Maybe                (fromMaybe)
-import           Data.Monoid
 import           Numeric
-import           Control.Concurrent        (threadDelay)
+import           Options.Applicative
+import           Options.Applicative.Types (readerAsk)
 import           System.Directory          (canonicalizePath)
 import           System.Environment        (getArgs, getProgName)
 import           System.Exit               (ExitCode (..))
-import           System.FilePath           ( -- addExtension, splitExtension,
-                                            replaceExtension, dropExtension,
+import           System.FilePath           (dropExtension, replaceExtension,
                                             takeDirectory, takeFileName, (</>))
 import           System.FSNotify           (WatchConfig (..), defaultConfig,
                                             eventTime, watchDir,
@@ -105,27 +91,28 @@ import           System.Info               (os)
 import           System.IO                 (hFlush, stdout)
 import           System.Process            (readProcessWithExitCode)
 
-import Geometry.Size
-import Geometry.TwoD.Size
-import Geometry.TwoD.Types
---
+import           Geometry.Size
+import           Geometry.Space
+import           Geometry.TwoD.Size
+import           Geometry.TwoD.Types
+
 import           Diagrams.Animation
 import           Diagrams.Attributes
 import           Diagrams.Types
 import           Diagrams.Util
 
--- | A hidden \"helper\" option which always fails.
---   Taken from Options.Applicative.Extra but without the
---   short option 'h'.  We want the 'h' for Height.
+-- | A hidden \"helper\" option which always fails.  Taken from
+--   "Options.Applicative.Extra" but without the short option 'h'.  We
+--   want the 'h' for Height.
 helper' :: Parser (a -> a)
 helper' = abortOption ShowHelpText $ mconcat
   [long "help", short '?', help "Show this help text"]
 
 -- | Apply a parser to the command line that includes the standard
---   program description and help behavior.  Results in parsed commands
+--   program description and help behavior. Outcomes in parsed commands
 --   or fails with a help message.
-defaultOpts :: Parser a -> IO a
-defaultOpts optsParser = do
+defaultExecParser :: Parser a -> IO a
+defaultExecParser optsParser = do
   prog <- getProgName
   let p = info (helper' <*> optsParser) $
             mconcat [fullDesc, progDesc "Command-line diagram generation.", header prog]
@@ -147,14 +134,6 @@ class Parseable a where
   default parser :: Read a => Parser a
   -- | The @default@ parser uses the 'Read' instance for that type.
   parser = argument auto mempty
-
-instance (Read n, Num n) => Parseable (SizeSpec V2 n) where
-  parser = mkSizeSpec2D <$> o w <*> o h where
-    o = optional . option auto
-    w = mconcat [ long "width", short 'w', metavar "INT"
-                , help "Desired width of the output image"]
-    h = mconcat [ long "height", short 'h', metavar "INT"
-                , help "Desired height of the output image"]
 
 -- | 'Read' instance.
 instance Parseable Int
@@ -226,229 +205,171 @@ instance (Parseable a, Parseable b, Parseable c) => Parseable (a, b, c) where
 instance (Parseable a, Parseable b, Parseable c, Parseable d) => Parseable (a, b, c, d) where
   parser = (,,,) <$> parser <*> parser <*> parser <*> parser
 
-newtype PickBackend = PickBackend { getBackendName :: Maybe FilePath }
+-- Mainable helper parsers ---------------------------------------------
 
-instance Parseable PickBackend where
-  parser = PickBackend <$> optional (strOption opts) where
-    opts = mconcat [ long "backend", short 'b', metavar "BACKEND"
-                   , help "Name of the backend to use" ]
+-- | Frames per unit time: @--fpu 60@. Defaults to 30.
+fpuParser :: Parser Double
+fpuParser = option auto $ mconcat
+  [ long "fpu", value 30.0
+  , help "Frames per unit time (for animations)"]
 
-newtype OutputPath = OutputPath { getOutput :: FilePath }
+-- | Parser for the output file: @--output output.ext@ or @-o output.ext@.
+outputParser :: Parser FilePath
+outputParser = strOption $ mconcat
+  [ long "output", short 'o', metavar "PATH"
+  , help "Output file" ]
 
-instance Parseable OutputPath where
-  parser = OutputPath <$> strOption opts where
-    opts = mconcat [long "output", short 'o', metavar "PATH", help "Output file"]
-
--- | Standard options most diagrams are likely to have.
---
---   Command line parser for 'DiagramOpts':
---     - Width is option @--width@ or @-w@.
---     - Height is option @--height@ or @-h@ (note we change help to be
---       @-?@ due to this).
---     - Output is option @--output@ or @-o@.
-data DiagramOpts = DiagramOpts
-  { _optsSizeSpec :: SizeSpec V2 Int
-  , _output       :: FilePath
-  }
-  deriving Typeable
-
-instance Parseable DiagramOpts where
-  parser = DiagramOpts <$> parser <*> outputParser where
-    outputParser = strOption $ mconcat
-      [long "output", short 'o', metavar "PATH", help "Output file"]
-
--- | Extra options for a program that can offer a choice between
---   multiple diagrams.
---
---   Command line parser for 'DiagramMultiOpts':
---     - Selection is option @--selection@ or @-S@.
---     - List is @--list@ or @-L@.
-data DiagramMultiOpts = DiagramMultiOpts
-  { _selection :: Maybe String -- ^ Selected diagram to render.
-  , _list      :: Bool         -- ^ Flag to indicate that a list of available diagrams should
-                               --   be printed to standard out.
-  }
-  deriving (Show, Data, Typeable)
-
-instance Parseable DiagramMultiOpts where
-  parser = DiagramMultiOpts <$> name <*> list where
-    name = optional . strOption $
-      mconcat [ long "selection", short 'S', metavar "NAME"
-              , help "NAME of the diagram to render"]
-    list = switch $
-      mconcat [ long "list", short 'L'
-              , help "List all available diagrams"]
-
--- | Extra options for animations.
---
---   Command line parser for 'DiagramAnimOpts':
---     - Frames per time unit is @--fpu@ or @-f@.
-data DiagramAnimOpts = DiagramAnimOpts
-  { _fpu :: Double
-  }
-  deriving (Show, Data, Typeable)
-
-instance Parseable DiagramAnimOpts where
-  parser = DiagramAnimOpts <$> frames where
-    frames = option auto $ mconcat
-      [ long "fpu", short 'f', value 30.0
-      , help "Frames per unit time (for animations)"]
-
--- | Extra options for command-line looping.
---
---   CommandLine parser for 'DiagramLoopOpts':
---     - Loop is @--loop@ or @-l@.
---     - Source is @--src@ or @-s@.
---     - Interval is @-i@ defaulting to one second.
-data DiagramLoopOpts = DiagramLoopOpts
-  { _loop     :: Bool            -- ^ Flag to indicate that the program should loop creation.
-  , _src      :: Maybe FilePath  -- ^ File path for the source file to recompile.
-  , _interval :: Int             -- ^ Interval in seconds at which to check for recompilation.
-  }
-
-instance Parseable DiagramLoopOpts where
-  parser = DiagramLoopOpts <$> switch loop <*> src <*> int where
-    loop = mconcat [long "loop", short 'l', help "Run in a self-recompiling loop"]
-    src  = optional . strOption $ mconcat [long "src", short 's', help "Source file to watch"]
-    int  = option auto $ mconcat
-        [ long "interval", short 'i', value 1, metavar "INT"
-        , help "When running in a loop, check for changes every i seconds."]
-
--- To result class -----------------------------------------------------
-
--- | This class allows us to abstract over functions that take some
---   arguments and produce a final value. When some @d@ is an instance
---   of 'ToResult' we get a type @'Args' d@ that is a type of /all/ the
---   arguments at once, and a type @'ResultOf' d@ that is the type of
---   the final result from some base case instance.
-class ToResult d where
-
-  -- | The arguments needed to make the result.
-  type Args d
-  type Args d = ()
-
-  -- | The result from using the 'Args'
-  type ResultOf d
-  type ResultOf d = d
-
-  -- | Using the provided args, make a result.
-  toResult :: d -> Args d -> ResultOf d
-  default toResult :: d -> () -> d
-  toResult d () = d
-
--- | A diagram can always produce a diagram when given @()@ as an
---   argument. This is our base case.
-instance ToResult (QDiagram v n Any)
-
--- | A list of diagrams can produce pages.
-instance ToResult [QDiagram v n Any]
-
--- | A list of named diagrams can give the multi-diagram interface.
-instance ToResult [(String, QDiagram v n Any)]
-
--- | An animation is another suitable base case.
-instance ToResult (Animation v)
-
--- | Diagrams that require IO to build are a base case.
-instance ToResult d => ToResult (IO d) where
-  type Args (IO d) = Args d
-  type ResultOf (IO d) = IO (ResultOf d)
-
-  toResult d args = flip toResult args <$> d
-
--- | An instance for a function that, given some 'a', can produce a 'd'
---   that is also an instance of 'ToResult'. For this to work we need
---   both the argument 'a' and all the arguments that 'd' will need.
---   Producing the result is simply applying the argument to the
---   producer and passing the remaining arguments to the produced
---   producer.
-
---   The previous paragraph stands as a witness to the fact that Haskell
---   code is clearer and easier to understand then paragraphs in English
---   written by me.
-instance ToResult d => ToResult (a -> d) where
-  type Args (a -> d) = (a, Args d)
-  type ResultOf (a -> d) = ResultOf d
-
-  toResult f (a,args) = toResult (f a) args
+sizeParser :: Parser (SizeSpec V2 Int)
+sizeParser = mkSizeSpec2D <$> o w <*> o h where
+  o = optional . option auto
+  w = mconcat [ long "width", short 'w', metavar "INT"
+              , help "Desired width of the output image" ]
+  h = mconcat [ long "height", short 'h', metavar "INT"
+              , help "Desired height of the output image" ]
 
 -- Mainable class ------------------------------------------------------
 
--- | This class represents the various ways we want to support diagram
---   creation from the command line. It has the right instances to
---   select between creating single static diagrams, multiple static
---   diagrams, static animations, and functions that produce diagrams as
---   long as the arguments are 'Parseable'.
---
---   Backends are expected to create @Mainable@ instances for the types
---   that are suitable for generating output in the backend's format.
---   For instance, Postscript can handle single diagrams, pages of
---   diagrams, animations as separate files, and association lists.
---   This implies instances for @Diagram Postscript R2@, @[Diagram
---   Postscript R2]@, @Animation Postscript R2@, and @[(String,Diagram
---   Postscript R2)]@.  We can consider these as the base cases for the
---   function instance.
---
---   The associated type 'MainOpts' describes the options which need to
---   be parsed from the command-line and passed to @mainRender@.
-class Parseable (MainOpts d) => Mainable d where
+-- | Perform an IO action
+class WithOutcome a where
   -- | Associated type that describes the options which need to be parsed
   -- from the command-line and passed to @mainRender@.
-  type MainOpts d
+  type Args a
+  type Args a = ()
 
-  -- | This method invokes the command-line parser resulting in an
-  --   options value or ending the program with an error or help
-  --   message. Typically the default instance will work. If a different
-  --   help message or parsing behavior is desired a new implementation
-  --   is appropriate.
-  --
-  --   Note the @d@ argument should only be needed to fix the type @d@.
-  --   Its value should not be relied on as a parameter.
-  mainArgs :: proxy d -> IO (MainOpts d)
-  mainArgs _ = defaultOpts parser
+  -- | The target type that eventually gets targeted with an 'IO' acion in
+  --   'withOutcome'.
+  type Outcome a
+  type Outcome a = a
 
-  -- | Backend specific work of rendering with the given options and
-  --   mainable value is done here. All backend instances should
-  --   implement this method.
-  mainRender :: MainOpts d -> d -> IO ()
+  -- | The parser used to parse the arguments of @a@.
+  argsParser :: proxy a -> Parser (Args a)
 
-  -- | Main entry point for command-line diagram creation. This is the
-  --   method that users will call from their program @main@. For
-  --   instance an expected user program would take the following form.
-  --
-  -- @
-  -- import Diagrams.Prelude
-  -- import Diagrams.Backend.TheBestBackend.CmdLine
-  --
-  -- d :: Diagram B
-  -- d = ...
-  --
-  -- main = mainWith d
-  -- @
-  --
-  --   Most backends should be able to use the default implementation.
-  --   A different implementation should be used to handle more complex
-  --   interactions with the user.
-  mainWith :: d -> IO ()
-  mainWith d = do
-    opts <- mainArgs (Just d)
-    mainRender opts d
+  -- | Default case with no arguments
+  default argsParser :: proxy a -> Parser ()
+  argsParser _ = pure ()
 
--- | This instance allows functions resulting in something that is 'Mainable' to
---   be 'Mainable'.  It takes a parse of collected arguments and applies them to
---   the given function producing the 'Mainable' result.
-instance (ToResult d, Parseable a, Parseable (Args d), Mainable (ResultOf d))
-    => Mainable (a -> d) where
-  type MainOpts (a -> d) = (MainOpts (ResultOf (a -> d)), Args (a -> d))
+  -- | Given an IO action to run on the target of a, and a, execute the
+  --   result.
+  withOutcome :: (Outcome a -> IO ()) -> Args a -> a -> IO ()
 
-  mainRender (opts, a) f = mainRender opts (toResult f a)
+  -- | Default case where @a@ is the target.
+  default withOutcome :: a ~ Outcome a => (Outcome a -> IO ()) -> () -> a -> IO ()
+  withOutcome f () r = f r
 
--- | With this instance we can perform IO to produce something
---   'Mainable' before rendering.
-instance Mainable d => Mainable (IO d) where
-  type MainOpts (IO d) = MainOpts d
+type instance V (IO a) = V a
 
-  mainRender opts dio = dio >>= mainRender opts
+resultProxy :: a -> Proxy (Outcome a)
+resultProxy _ = Proxy
+
+instance WithOutcome a => WithOutcome (IO a) where
+  type Args (IO a)   = Args a
+  type Outcome (IO a) = Outcome a
+  argsParser _ = argsParser (Proxy :: Proxy a)
+  withOutcome f args ioa = ioa >>= withOutcome f args
+
+instance (Parseable a, WithOutcome b) => WithOutcome (a -> b) where
+  type Args (a -> b)   = (a, Args b)
+  type Outcome (a -> b) = Outcome b
+  argsParser _ = (,) <$> parser <*> argsParser (Proxy :: Proxy b)
+  withOutcome f (a, args) g = withOutcome f args (g a)
+
+-- | Choose from a list of things to render.
+instance WithOutcome a => WithOutcome [(String, a)] where
+  type Args [(String, a)]   = (Maybe String, Args a)
+  type Outcome [(String, a)] = Outcome a
+  argsParser _ = (,) <$> nameParser <*> argsParser (Proxy :: Proxy a)
+    where
+    nameParser = optional . strOption $ mconcat [long "name",short 'n']
+    -- It would be nice to add a completer to this parser but it's not
+    -- possible with this setup.
+  withOutcome f (mname, args) ds =
+    case mname of
+      Just name -> case lookup name ds of
+        Just r  -> withOutcome f args r
+        Nothing -> putStrLn $ "Option \"" ++ name ++ "\" not found. Choose from:\n" ++ dsList
+      Nothing -> putStrLn $ "Pick an option with --name. Choose from:\n" ++ dsList
+    where
+    dsList = unlines (map (("  "++) . fst) ds)
+
+-- Terminating cases
+
+instance WithOutcome ()
+instance WithOutcome (Diagram v)
+
+-- | Lists of diagrams go on multiple pages (supported backends only).
+instance WithOutcome [Diagram v]
+
+-- | Backends choose their own way to render animations.
+instance WithOutcome (Animation v)
+
+-- | Types whose target is the unit @()@. These can be used to construct
+--   a main function with 'mainable'.
+class (Outcome a ~ (), WithOutcome a) => Mainable a
+instance (Outcome a ~ (), WithOutcome a) => Mainable a
+
+-- | Run a main function where the target is the unit @()@, getting any
+--   arguments from the command line.
+--
+-- @
+-- 'mainable' :: 'IO' ()                 -> 'IO' ()
+-- 'mainable' :: ('FilePath' -> 'IO' ()) -> 'IO' ()
+-- 'mainable' :: [(String, 'IO' ())]     -> 'IO' ()
+-- @
+mainable :: Mainable a => a -> IO ()
+mainable a = do
+  args <- defaultExecParser (argsParser (Identity a))
+  withOutcome return args a
+
+-- Rendering results ---------------------------------------------------
+
+-- | The 'Outcome' r can be rendered using @t@ and some options obtained
+--   from the command line.
+class RenderOutcome t r where
+  -- | Options obtained through command line arguments which are used to
+  --   render @r@.
+  type MainOpts t r
+
+  -- | The 'Parser' used to obtain the arguments from the command line.
+  resultParser :: t -> proxy r -> Parser (MainOpts t r)
+  default resultParser
+    :: Parseable (MainOpts t r)
+    => t -> proxy r -> Parser (MainOpts t r)
+  resultParser _ _ = parser
+
+  -- | Way to render @r@ given @t@ and the options recieved from the
+  --   command line.
+  renderOutcome :: t -> MainOpts t r -> r -> IO ()
+
+-- | Combination of 'WithOutcome and 'RenderOutcome' where the 'Outcome of
+--   @a@ can be rendered using the tag @t@.
+class (RenderOutcome t (Outcome a), WithOutcome a) => MainWith t a
+instance (RenderOutcome t (Outcome a), WithOutcome a) => MainWith t a
+
+-- | Render @a@ using the token @t@. For diagrams the token is the
+--   backend token (@SVG@, @PGF@ etc.)
+--
+--   For rendering diagrams with backend token @b@, we can make a simple
+--   main than renders a plan diagram:
+--
+--   @
+--   'mainWith' :: SVG -> 'Diagram' 'V2' -> 'IO' ()
+--   @
+--
+--   But 'mainRender' can also take 'Parseable' arguments and 'IO'
+--   'Diagram's:
+--
+--   @
+--   'mainWith' :: b -> ('Colour' 'Double' -> 'Diagram' 'V2') -> 'IO' ()
+--   'mainWith' :: b -> ('IO' ('Diagram' V2)) -> 'IO' ()
+--   'mainWith' :: b -> ('FilePath' -> 'IO' ('Diagram' 'V2')) -> 'IO' ()
+--   @
+--
+mainWith :: MainWith t a => t -> a -> IO ()
+mainWith t a = do
+  let parse = (,) <$> argsParser (Identity a)
+                  <*> resultParser t (resultProxy a)
+  (args,opts) <- defaultExecParser parse
+  withOutcome (renderOutcome t opts) args a
 
 -- | @defaultMultiMainRender@ is an implementation of 'mainRender' where
 --   instead of a single diagram it takes a list of diagrams paired with names
@@ -466,25 +387,19 @@ instance Mainable d => Mainable (IO d) where
 --
 --   We do not provide this instance in general so that backends can choose to
 --   opt-in to this form or provide a different instance that makes more sense.
-defaultMultiMainRender
-  :: Mainable d
-  => (MainOpts d, DiagramMultiOpts)
-  -> [(String, d)]
-  -> IO ()
-defaultMultiMainRender (opts,multi) ds =
-  if _list multi
-    then showDiaList (map fst ds)
-    else case _selection multi of
-           Nothing  -> putStrLn "No diagram selected." >> showDiaList (map fst ds)
-           Just sel -> case lookup sel ds of
-                         Nothing -> putStrLn $ "Unknown diagram: " ++ sel
-                         Just d  -> mainRender opts d
-
--- | Display the list of diagrams available for rendering.
-showDiaList :: [String] -> IO ()
-showDiaList ds = do
-  putStrLn "Available diagrams:"
-  putStrLn $ "  " ++ unwords ds
+-- defaultMultiMainRender
+--   :: Mainable d
+--   => (MainOpts d, DiagramMultiOpts)
+--   -> [(String, d)]
+--   -> IO ()
+-- defaultMultiMainRender (opts,multi) ds =
+--   if _list multi
+--     then showDiaList (map fst ds)
+--     else case _selection multi of
+--            Nothing  -> putStrLn "No diagram selected." >> showDiaList (map fst ds)
+--            Just sel -> case lookup sel ds of
+--                          Nothing -> putStrLn $ "Unknown diagram: " ++ sel
+--                          Just d  -> mainRender opts d
 
 -- | @defaultAnimMainRender@ is an implementation of 'mainRender' which
 --   renders an animation as numbered frames, named by extending the
@@ -541,10 +456,40 @@ showDiaList ds = do
 --         output'     = addExtension (base ++ printf fmt i) ext
 --         (base, ext) = splitExtension (opts^.out)
 
--- | Put a string and flush. Usefull for progress updates that don't
---   contain a newline.
-putStrF :: String -> IO ()
-putStrF s = putStr s >> hFlush stdout
+------------------------------------------------------------------------
+-- Loop rendering
+------------------------------------------------------------------------
+-- | Extra options for command-line looping.
+--
+--   CommandLine parser for 'DiagramLoopOpts':
+--     - Loop is @--loop@ or @-l@.
+--     - Source is @--src@ or @-s@.
+--     - Interval is @-i@ defaulting to one second.
+data DiagramLoopOpts = DiagramLoopOpts
+  { _loop     :: Bool            -- ^ Flag to indicate that the program should loop creation.
+  , _src      :: Maybe FilePath  -- ^ File path for the source file to recompile.
+  , _interval :: Int             -- ^ Interval in seconds at which to check for recompilation.
+  }
+
+loopOptsParser :: Parser DiagramLoopOpts
+loopOptsParser = DiagramLoopOpts <$> switch loop <*> src <*> int where
+    loop = mconcat [long "loop", short 'l', help "Run in a self-recompiling loop"]
+    src  = optional . strOption $ mconcat [long "src", short 's', help "Source file to watch"]
+    int  = option auto $ mconcat
+        [ long "interval", short 'i', value 1, metavar "INT"
+        , help "When running in a loop, check for changes every i seconds."]
+
+-- | Similar to 'mainWith' but includes an additional @--loop@ option
+--   (see 'loopOptsParser') that will recompile the module each time the
+--   source of the diagram is saved.
+loopMainWith :: MainWith t a => t -> a -> IO ()
+loopMainWith t a = do
+  let parse = (,,) <$> argsParser (Identity a)
+                   <*> resultParser t (resultProxy a)
+                   <*> loopOptsParser
+  (args,opts,loopOpts) <- defaultExecParser parse
+  withOutcome (renderOutcome t opts) args a
+  defaultLoopRender loopOpts
 
 -- | Default way to render with looping turned on.
 defaultLoopRender :: DiagramLoopOpts -> IO ()
@@ -612,6 +557,11 @@ newProgName srcFile oldName = case os of
         then replaceExtension srcFile ".1.exe"
         else replaceExtension srcFile "exe"
   _ -> dropExtension srcFile
+
+-- | Put a string and flush. Usefull for progress updates that don't
+--   contain a newline.
+putStrF :: String -> IO ()
+putStrF s = putStr s >> hFlush stdout
 
 -- | Run the given program with specified arguments, if and only if
 --   the previous command returned ExitSuccess.

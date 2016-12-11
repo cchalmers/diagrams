@@ -1,46 +1,40 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
--- {-# LANGUAGE MultiParamTypeClasses #-}
-
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures      #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Diagrams.Backend
   ( module Diagrams.Backend
   , module Diagrams.Backend.CmdLine
   ) where
 
--- import Data.Semigroup
-import Data.Reflection
-import Data.Proxy
-import Data.Maybe (fromMaybe)
--- import Data.Monoid.Action
--- import Data.Monoid.WithSemigroup
--- import Control.Applicative
-import Data.Char (toLower)
-import System.FilePath (takeExtension)
-import System.Directory (getDirectoryContents)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.List (isSuffixOf)
+import qualified Options.Applicative      as OP
 
-import Geometry.Size
-import Geometry.Envelope
-import Geometry.Transform
-import Geometry.TwoD.Types
-import Geometry.Space
+import           Data.Char                (toLower)
+import           Data.List                (find, intercalate, isSuffixOf)
+import           System.Directory         (getDirectoryContents)
+import           System.FilePath          (takeExtension)
+import           System.IO.Unsafe         (unsafePerformIO)
 
-import Control.Lens (Lens')
-import Diagrams.Types
-import Diagrams.Util
+import           Geometry.Envelope
+import           Geometry.Size
+import           Geometry.Space
+import           Geometry.Transform
+import           Geometry.TwoD.Types
 
-import Diagrams.Backend.CmdLine
-import Data.Constraint
-import Data.Constraint.Unsafe
+import           Control.Lens             (Lens', each, over, _1)
+import           Diagrams.Types
+import           Diagrams.Util
+
+import           Diagrams.Backend.CmdLine
 
 -- | Backends are used to render diagrams.
 class Backend b where
@@ -55,6 +49,10 @@ class Backend b where
   -- | Render a diagram into the result along with the transformation
   --   from the original diagram to output diagram.
   renderDiaT :: Options b -> Diagram (V b) -> (Result b, Transformation (V b) Double)
+
+  -- | General information about the backend that can be used by various
+  --   other tools and libraries.
+  backendInfo :: b -> BackendInfo
 
 -- 2D helpers ----------------------------------------------------------
 
@@ -80,8 +78,8 @@ class Backend b => BackendBuild b where
 
   -- | Render a diagram to a file with the given options.
   saveDiagram'
-    :: Options b     -- ^ output file
-    -> FilePath      -- ^ diagram options
+    :: FilePath      -- ^ diagram options
+    -> Options b     -- ^ output file
     -> Diagram (V b) -- ^ diagram to render
     -> IO ()         -- ^ render
 
@@ -96,11 +94,11 @@ class Backend b => BackendBuild b where
 saveDiagram
   :: BackendBuild b
   => b               -- ^ backend token
-  -> SizeSpec V2 Int -- ^ size of diagram
   -> FilePath        -- ^ output path
+  -> SizeSpec V2 Int -- ^ size of diagram
   -> Diagram (V b)   -- ^ diagram to render
   -> IO ()
-saveDiagram b sz = saveDiagram' (mkOptionsFor b sz)
+saveDiagram b path sz = saveDiagram' path (mkOptionsFor b sz)
 
 -- | Make options for a specific backend.
 mkOptionsFor :: BackendBuild b => b -> SizeSpec V2 Int -> Options b
@@ -108,12 +106,15 @@ mkOptionsFor _ = mkOptions
 
 -- | Information needed to generate code to make a diagram.
 data BackendInfo = BackendInfo
-  { backendModuleName  :: String
-  , backendTokenName   :: String
-  , backendModules     :: [String]
-  , backendNameMatch   :: String -> Bool
-  , extensionSupported :: FilePath -> Bool
-    -- ^ does the backend support
+  { backendModuleName :: String
+  , backendTokenName  :: String
+  , backendModules    :: [String]
+    -- ^ modules that need to be imported for the token to be in scope
+  , backendNames      :: [String]
+    -- ^ names that can be used to refer to this backend. all lower
+    -- case, dashes used beween words
+  , backendExtensions :: [String]
+    -- ^ extensions supported by this backend (all lower case)
   }
 
 officialBackends :: [BackendInfo]
@@ -121,72 +122,72 @@ officialBackends = [cairoInfo, pgfInfo, svgInfo, rasterificInfo]
 
 pgfInfo :: BackendInfo
 pgfInfo = BackendInfo
-  { backendModuleName  = "diagrams-pgf"
-  , backendTokenName   = "PGF"
-  , backendModules     = ["Diagrams.Backend.PGF"]
-  , backendNameMatch   = (`elem` pgfNames) . map toLower
-  , extensionSupported = (`elem` extensions) . map toLower
+  { backendModuleName = "diagrams-pgf"
+  , backendTokenName  = "PGF"
+  , backendModules    = ["Diagrams.Backend.PGF"]
+  , backendNames      = ["pgf", "tikz", "tex", "latex", "context", "pdf"]
+  , backendExtensions = ["pgf", "tikz", "portable-graphics-format"]
   }
-  where
-    extensions = ["pgf", "tikz", "tex", "latex", "context", "pdf"]
-    pgfNames   = ["pgf", "tikz", "portable-graphics-format"]
 
 rasterificInfo :: BackendInfo
 rasterificInfo = BackendInfo
   { backendModuleName  = "diagrams-rasterific"
   , backendTokenName   = "Rasterific"
   , backendModules     = ["Diagrams.Backend.Rasterific"]
-  , backendNameMatch   = (`elem` rasterNames) . map toLower
-  , extensionSupported = (`elem` extensions) . map toLower
+  , backendNames       = ["raterific", "raster"]
+  , backendExtensions  = ["pdf", "jpg", "jpeg", "gif", "tiff", "png"]
   }
-  where
-    extensions  = ["pdf", "jpg", "jpeg", "gif", "tiff", "png"]
-    rasterNames = ["raterific", "raster"]
 
 cairoInfo :: BackendInfo
 cairoInfo = BackendInfo
   { backendModuleName  = "diagrams-cairo"
   , backendTokenName   = "Cairo"
   , backendModules     = ["Diagrams.Backend.Cairo"]
-  , backendNameMatch   = (`elem` cairoNames) . map toLower
-  , extensionSupported = (`elem` extensions) . map toLower
+  , backendNames       = ["svg", "raster", "scalable-graphics-format"]
+  , backendExtensions  = ["pdf", "jpg", "jpeg", "gif", "tiff", "png"]
   }
-  where
-    extensions  = ["pdf", "jpg", "jpeg", "gif", "tiff", "png"]
-    cairoNames = ["svg", "raster", "scalable-graphics-format"]
 
 svgInfo :: BackendInfo
 svgInfo = BackendInfo
   { backendModuleName  = "diagrams-svg"
   , backendTokenName   = "SVG"
   , backendModules     = ["Diagrams.Backend.SVG"]
-  , backendNameMatch   = (`elem` svgNames) . map toLower
-  , extensionSupported = (`elem` extensions) . map toLower
+  , backendNames       = ["svg", "raster", "scalable-graphics-format"]
+  , backendExtensions  = ["svg"]
   }
-  where
-    extensions  = ["svg"]
-    svgNames = ["svg", "raster", "scalable-graphics-format"]
 
-renderCode
-  :: BackendInfo -- ^ backend attemping to use
-  -> FilePath    -- ^ output file
-  -> SizeSpec V2 Int -- ^ output size
-  -> String      -- ^ name of diagram to render
-  -> Either String String
-renderCode bi outpath sz nm
-  | not (backendNameMatch bi (tail $ takeExtension outpath)) = Left "extension not supported" -- XXX replace tail with something safe
-  | not (backendModuleName bi `elem` currentPackages)        = Left "package not in sandbox paths"
-  | otherwise = Right $ "Diagrams.Backend.renderDiaToFileFor " ++
-      backendTokenName bi ++ " " ++ outpath ++ " " ++ showSize sz ++ nm
+sdlInfo :: BackendInfo
+sdlInfo = BackendInfo
+  { backendModuleName  = "diagrams-sdl"
+  , backendTokenName   = "SDL"
+  , backendModules     = ["Diagrams.Backend.SDL"]
+  , backendNames       = ["sdl"]
+  , backendExtensions  = []
+  }
+
+-- renderCode
+--   :: BackendInfo -- ^ backend attemping to use
+--   -> FilePath    -- ^ output file
+--   -> SizeSpec V2 Int -- ^ output size
+--   -> String      -- ^ name of diagram to render
+--   -> Either String String
+-- renderCode bi outpath sz nm
+--   | not (backendNameMatch bi (tail $ takeExtension outpath)) = Left "extension not supported" -- XXX replace tail with something safe
+--   | not (backendModuleName bi `elem` currentPackages)        = Left "package not in sandbox paths"
+--   | otherwise = Right $ "Diagrams.Backend.renderDiaToFileFor " ++
+--       backendTokenName bi ++ " " ++ outpath ++ " " ++ showSize sz ++ nm
 
 showSize :: SizeSpec V2 Int -> String
 showSize = undefined
+  -- V2 (Just x) (Just y) -> "dims2D x y"
+  -- V2 (Just x) Nothing  -> "mkWidth x"
+  -- V2 Nothing (Just y)  -> "mkHeight y"
+  -- V2 Nothing Nothing   -> "absolute"
 
 
 -- Packages shoudln't change while running the program.
 currentPackages :: [String]
 currentPackages = unsafePerformIO currentPackagesIO
-{-# INLINE currentPackages #-}
 
 currentPackagesIO :: IO [String]
 currentPackagesIO = do
@@ -196,150 +197,60 @@ currentPackagesIO = do
          Nothing -> globalPackage
   filter (isSuffixOf ".conf.d") <$> getDirectoryContents x
 
--- Command line --------------------------------------------------------
+data MBack v where
+  MBack :: (V b ~ v, BackendBuild b) => b -> MBack v
 
--- class Parsable (MainOpts d) => Mainable d where
---   type MainOpts d
+showBacks :: [(String, MBack v)] -> String
+showBacks [] = "No avalable backends"
+showBacks bs = intercalate ", " $ map fst bs
 
---   mainArgs :: proxy d -> IO (MainOpts d)
+chooseBackend :: String -> [(String, MBack v)] -> Maybe (MBack v)
+chooseBackend nm = lookup nm . over (each._1.each) toLower
 
---   mainRender :: MainOpts d -> d -> IO ()
+-- | Some backend that can render a 2D diagram to a file given a
+--   'Filepath' and a 'SizeSpec'
+data SomeBackend = SomeBackend
+  { someBackendNames    :: [String]
+  , supportedExtensions :: [String]
+  , someRender          :: FilePath -> SizeSpec V2 Int -> Diagram V2 -> IO ()
+    -- it's possible to add a parser in here if we really want
+  }
 
--- newtype MainDiagram b v n = MainDiagram (Diagram v n Any)
+instance RenderOutcome SomeBackend (Diagram V2) where
+  type MainOpts SomeBackend (Diagram V2) = (FilePath, SizeSpec V2 Int)
+  resultParser _ _ = (,) <$> outputParser <*> sizeParser
+  renderOutcome sb (path,sz) = someRender sb path sz
 
--- mkMain :: b -> QDiagram v n m -> MainDiagram b v n
--- mkMain _ d = MainDiagram $ mempty <$ d
+-- | The name of the backend to use for rendering.
+backendParser :: OP.Parser (Maybe String)
+backendParser = OP.optional . OP.strOption $ mconcat
+  [ OP.long "backend", OP.short 'b', OP.metavar "STRING"
+  , OP.help "Name of the backend to use" ]
+  -- We could add a completer to this.
 
--- instance (BackendBuild b v n, Parsable (Options b v n)) => Mainable (MainDiagram b v n) where
---   type MainOpts (MainDiagram b v n) = (Options b v n, OutputPath)
+instance RenderOutcome [SomeBackend] (Diagram V2) where
+  type MainOpts [SomeBackend] (Diagram V2) = (Maybe String, FilePath, SizeSpec V2 Int)
+  resultParser _ _ = (,,) <$> backendParser <*> outputParser <*> sizeParser
+  renderOutcome [] _ = error "No provided backends!"
+  renderOutcome bs (mBack,path,sz) = someRender sb path sz
+    where
+      ext = takeExtension path
+      sb  = case mBack of
+        Just nm -> case find (\b -> nm `elem` someBackendNames b) bs of
+          Just b -> b
+          Nothing -> error $ "backend " ++ show nm ++ "not found"
+        Nothing -> case find (\b -> ext `elem` supportedExtensions b) bs of
+          Just b -> b
+          Nothing -> case ext of
+            "" -> error "empty output extension, cannot infer file type"
+            e  -> error $ "unsupported extension " ++ show e
 
---   -- mainArgs _ = defaultOpts parser
---   mainRender (opts, outpath) (MainDiagram d) = renderFile outpath opts d
-
--- instance ToResult (MainDiagram b v n) where
---   type Args (MainDiagram b v n) = ?
---   type ResultOf (MainDiagram b v n) = ?
-
---   toResult d ? = ?d
-
--- instance (Given b, Mainable (MainDiagram b v n)) => ToResult (Diagram v n) where
---   type MainOpts (Diagram v n) = ()
---   type ResultOf (Diagram v n) = Diagram v n
-
--- -- Building without custom options -------------------------------------
-
--- Give us a mainable instance for a diagram using the mainsble instance
--- for d.
-underiveMainable
-  :: Coercible (Diagram v) d
-  => (b -> Diagram v -> d) -> b -> Mainable d :- Mainable (Diagram v)
-underiveMainable f b = unsafeUnderive (f b)
-
-
--- Dumb version that uses default options for the size spec.
-newtype SimpleBuild b = SimpleBuild (Diagram (V b))
-
-instance BackendBuild b => Mainable (SimpleBuild b) where
-  type MainOpts (SimpleBuild b) = (DiagramOpts, DiagramLoopOpts)
-
-  mainRender (diaOpts, loopOpts) (SimpleBuild d) = do
-    let opts = mkOptions $ _optsSizeSpec diaOpts :: Options b
-    saveDiagram' opts (_output diaOpts) d
-    defaultLoopRender loopOpts
-    -- case saveDiagram' opts (_output diaOpts) d of
-    --   Left e  -> putStrLn $ "diagram render error:" ++ e
-    --   Right r -> r >> defaultLoopRender loopOpts
-
-mkSimpleBuildFor :: b -> Diagram (V b) -> SimpleBuild b
-mkSimpleBuildFor _ = SimpleBuild
-
-simpleMainWith
-  :: BackendBuild b
-  => b -> (Mainable (Diagram (V b)) => d) -> d
-simpleMainWith b d = d \\ underiveMainable mkSimpleBuildFor b
-
--- Slightly less dumb version that uses the parser for the backend's
--- options.
-newtype DefaultBuild b = DefaultBuild (Diagram (V b))
-
-instance (Parseable (Options b), BackendBuild b) => Mainable (DefaultBuild b) where
-  type MainOpts (DefaultBuild b) = (Options b, OutputPath, DiagramLoopOpts)
-
-  mainRender (diaOpts, outpath, loopOpts) (DefaultBuild d) = do
-    saveDiagram' diaOpts (getOutput outpath) d
-    defaultLoopRender loopOpts
-    -- case saveDiagram' diaOpts (getOutput outpath) d of
-    --   Left e  -> putStrLn $ "diagram render error:" ++ e
-    --   Right r -> r >> defaultLoopRender loopOpts
-
-mkDefaultBuildFor :: b -> Diagram (V b) -> DefaultBuild b
-mkDefaultBuildFor _ = DefaultBuild
-
--- | Give a mainable instance for a diagram using the given backend.
---
---   Can be used in conjuction with 'mainWith':
---
--- @
--- withBackend SVG mainWith $ \c -> circle 3 # fc c # frame 1
--- @
-withBackend
-  :: (Parseable (Options b), BackendBuild b)
-  => b -> (Mainable (Diagram (V b)) => d) -> d
-withBackend b d = d \\ underiveMainable mkDefaultBuildFor b
-  -- (unsafeUnderive (mkDefaultBuildFor b) :: Mainable (DefaultBuild b) :- Mainable (Diagram V2))
-
--- | Default main for the given backend.
-defaultMain :: (Parseable (Options b), BackendBuild b) => b -> Diagram (V b) -> IO ()
-defaultMain b = mainWith . mkDefaultBuildFor b
-
--- Multibackends -------------------------------------------------------
-
--- Muliple backends at once, using the simple render for it.
--- newtype SomeBackend v n = SomeBackend (forall b. BackendBuild b v n => b)
-data SomeBackend v where
-  SomeBackend :: (V b ~ v, BackendBuild b) => b -> SomeBackend v
-
-someRender
-  :: SomeBackend v
-  -> SizeSpec V2 Int
-  -> FilePath
-  -> Diagram v
-  -> IO ()
-someRender sb sz path dia = case sb of
-  SomeBackend b -> saveDiagram b sz path dia
-
-newtype Backends v = Backends [(String, SomeBackend v)]
-
--- | A tagged diagram. Used for reflecting a backend.
-newtype TDiagram s v = TDiagram (Diagram v)
-
-multiDia :: proxy s -> Diagram v -> TDiagram s v
-multiDia _ = TDiagram
-
-multiSubs :: Proxy s -> Mainable (TDiagram s v) :- Mainable (Diagram v)
-multiSubs _ = unsafeUnderive TDiagram
-
-instance Reifies s (Backends v) => Mainable (TDiagram s v) where
-  type MainOpts (TDiagram s v) = (PickBackend, DiagramOpts, DiagramLoopOpts)
-
-  mainRender (bName, diaOpts, loopOpts) (TDiagram d) = do
-    let Backends bs = reflect (Proxy @ s)
-        backupB = snd $ head bs -- XXX do something better
-        b = fromMaybe backupB $ do
-              nm <- getBackendName bName
-              lookup nm bs
-    someRender b (_optsSizeSpec diaOpts) (_output diaOpts) d
-    defaultLoopRender loopOpts
-
--- | Produce a 'Mainable' instance for a diagram by picking a backend.
-multiBackend :: [(String, SomeBackend v)] -> (Mainable (Diagram v) => d) -> d
-multiBackend bs d = reify (Backends bs) (\p -> d \\ underiveMainable multiDia p)
-
--- | A safe version of 'multiBackend' that provides the list of backends
---   via @s@. The proxy is to be used in conjunction with 'multiDia'.
-multiBackendP
-  :: [(String, SomeBackend v)]
-  -> (forall s. Mainable (TDiagram s v) => Proxy s -> d)
-  -> d
-multiBackendP bs d = reify (Backends bs) d
+-- | Create a 'SomeBackend' using the 'BackendBuild' class to render for
+--   that backend.
+someBackend :: (BackendBuild b, V b ~ V2) => b -> SomeBackend
+someBackend b = SomeBackend
+  { someBackendNames    = backendNames info
+  , supportedExtensions = backendExtensions info
+  , someRender          = saveDiagram b
+  } where info = backendInfo b
 
