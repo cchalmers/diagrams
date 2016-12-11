@@ -37,6 +37,8 @@ library
     Diagrams.TwoD.Path
     Diagrams.TwoD.Path.Unboxed
     Diagrams.TwoD.Text
+    Diagrams.ThreeD.Attributes
+    Diagrams.ThreeD.Light
   -- other-modules:       
   other-extensions:
     CPP, FlexibleContexts, MultiParamTypeClasses, TypeFamilies,

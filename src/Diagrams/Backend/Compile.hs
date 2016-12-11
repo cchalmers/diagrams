@@ -5,6 +5,8 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -31,21 +33,27 @@ module Diagrams.Backend.Compile
   where
 
 import           Control.Lens              hiding (transform)
+import           Control.Lens.Extras       (is)
 import qualified Data.Foldable             as F
 import           Data.Monoid.Coproduct
 import qualified Data.Monoid as            M
 import           Data.Typeable
+import Data.Colour (Colour)
 
 import           Geometry.Envelope    (size)
 import           Geometry.Transform
 import           Geometry.Space
 import           Geometry.Path (Path)
 import           Geometry.Path.Unboxed (UPath)
+import           Geometry.ThreeD.Shapes
+import           Geometry.ThreeD.Types
+import           Codec.Picture.Types  (DynamicImage, dynamicMap, imageWidth, imageHeight)
 
 import           Diagrams.Types
 import           Diagrams.Types.Tree (foldDUAL)
 
-import Diagrams.TwoD.Image (DImage, Embedded, External)
+import Diagrams.TwoD.Image (DImage(..), ImageData(..), Embedded, External)
+import Diagrams.ThreeD.Light (PointLight (..))
 import Diagrams.TwoD.Text (Text)
 import Linear (Additive, V2)
 
@@ -105,9 +113,66 @@ _Text = _Prim
 _EmbeddedImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n Embedded)
 _EmbeddedImage = _Prim
 
+-- | Prism onto to an embedded image.
+pattern EmbeddedImagePrim
+  :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
+pattern EmbeddedImagePrim dyn
+  <- (preview _EmbeddedImage -> Just (DImage _ _ (ImageRaster dyn))) where
+  EmbeddedImagePrim img =
+    let w = dynamicMap imageWidth img
+        h = dynamicMap imageHeight img
+    in  Prim (DImage w h (ImageRaster img))
+
 -- | Prism onto to an external image.
 _ExternalImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n External)
 _ExternalImage = _Prim
+
+------------------------------------------------------------------------
+-- 3D
+------------------------------------------------------------------------
+
+-- Prisms --------------------------------------------------------------
+
+-- | Prism onto a cube prim.
+_Cube :: (Typeable n, Num n) => Prism' (Prim V3 n) (Cube n)
+_Cube = _Prim
+
+-- | Prism onto a cube prim.
+_Frustum :: (Typeable n, Num n) => Prism' (Prim V3 n) (Frustum n)
+_Frustum = _Prim
+
+-- | Prism onto a cube prim.
+_Sphere :: (Typeable n, Num n) => Prism' (Prim V3 n) (Sphere n)
+_Sphere = _Prim
+
+_PointLight :: (Typeable n, Num n) => Prism' (Prim V3 n) (PointLight n)
+_PointLight = _Prim
+
+-- Patterns ------------------------------------------------------------
+
+pattern Cube_ :: (Typeable n, Num n) => Prim V3 n
+pattern Cube_ <- (is _Cube -> True) where
+  Cube_ = Prim Cube
+
+pattern Frustum_ :: (Typeable n, Num n) => n -> n -> Prim V3 n
+pattern Frustum_ a b <- (preview _Frustum -> Just (Frustum a b)) where
+  Frustum_ a b = Prim (Frustum a b)
+
+pattern Sphere_ :: (Typeable n, Num n) => Prim V3 n
+pattern Sphere_ <- (is _Sphere -> True) where
+  Sphere_ = Prim Sphere
+
+pattern PointLight_ :: (Typeable n, Num n) => P3 n -> Colour Double -> Prim V3 n
+pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
+  PointLight_ p c = Prim (PointLight p c)
+
+pattern Path_ :: (Typeable v, Additive v, Typeable n, Num n, Typeable n)
+              => Path v n -> Prim v n
+pattern Path_ p <- (preview _Path -> Just p) where
+  Path_ p = Prim p
+
+-- pattern NaN <- (isNaN -> True) where
+--   NaN = 0/0
 
 -- | Get the normalized scale factor from a vector. For the
 --   'normalizedFactor' of a diagram use this with the 'size' of the

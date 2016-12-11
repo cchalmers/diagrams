@@ -115,6 +115,7 @@ import           Geometry.Query
 import           Geometry.Space
 import           Geometry.Trace
 import           Geometry.Transform
+import           Geometry.ThreeD.Shapes
 
 import           Diagrams.Types.Annotations
 import           Diagrams.Types.Measure
@@ -123,6 +124,7 @@ import           Diagrams.Types.Style
 import qualified Diagrams.Types.Tree as T
 
 import           Linear.Metric
+import           Linear.V3 (V3)
 
 -- | Class of numbers that are 'RealFloat' and 'Typeable'. This class is used to
 --   shorten type constraints.
@@ -400,6 +402,15 @@ instance Transformable (QDiagram v n m) where
 instance Qualifiable (QDiagram v n m) where
   (toName -> Name nms) .>> QD t = QD (T.labels nms t)
   {-# INLINE (.>>) #-}
+
+instance (OrderedField n, Typeable n) => CuboidLike (QDiagram V3 n Any) where
+  cube = primQD Cube
+
+instance (OrderedField n, Typeable n) => EllipsoidLike (QDiagram V3 n Any) where
+  sphere = primQD Sphere
+
+instance TypeableFloat n => FrustumLike (QDiagram V3 n Any) where
+  frustum a b = primQD (Frustum a b)
 
 ------------------------------------------------------------
 --  Subdiagrams
