@@ -794,7 +794,7 @@ mkPretext tape t = Pretext (\f -> ixDUAL tape f t)
 
 -- -- Traverse a route ----------------------------------------------------
 
--- | Monad version of traversing all cases.
+-- | Traverse a rogue going to the lowest case in the tree.
 route
   :: forall f i d u m a l. (Hashable i, Eq i, Action d u, Applicative f, Semigroup d, Monoid d, Semigroup u)
   -- => DUALIndex i d u a l
@@ -822,14 +822,16 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     Down _ d' t -> go (d `mappend` d') r t
     UpMod _ m t -> modU m <$> go d r' t
     Annot _ a t -> annot a <$> go d r' t
-    _           -> error $ "modified: wrong number of annotations expected " ++ show (head ns)
+    Label lb d' (NE t) -> label' lb (Just d <> d') <$> go d r t -- XXX NOT SURE ABOUT THIS
+    t           -> error $ "rotue: reached " ++ neShow t ++ " with "
+                         ++ show (head ns) ++ " expected annotations"
     where r' = Route (map (subtract 1) ns) is
   go d r@(Route [] is) = \case
     Down _ d' t -> go (d `mappend` d') r t
     UpMod _ m t -> modU m <$> go d r t
     Annot _ a t -> annot a <$> go d r t
     Concat _ s  -> go2 d is s
-    _ -> error "modifiedT: reached leaf before following path"
+    t -> error $ "route: reached " ++ neShow t ++ " before following path"
 
   go2 :: d -> [(Int, Route)] -> Seq (NE i d u m a l) -> f (IDUAL i d u m a l)
   go2 d ((i,r):is) ts
@@ -844,7 +846,7 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     --     t'  <- go d r t
     --     sR' <- go2 d (is & each . _1 -~ (i+1)) sR
     --     pure $ idown d (rebuildSeq sL) <> t' <> sR'
-    | otherwise = error "modifiedT: tried to index wrong part of concat"
+    | otherwise = error "route: tried to index wrong part of concat"
   go2 d [] s = pure (down d (rebuildSeq s))
 
 -- Traversing downs ----------------------------------------------------
