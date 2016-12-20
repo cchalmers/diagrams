@@ -2,19 +2,29 @@
 
 ### Current status
 
-Proposed rewrite for the diagrams library. Currently at a proof of
-concept stage. So far I've implemented most of old functionality
-(missing arrows and offsets) and the pgf backend. I've also started a
-very basic 3d [gl] and [sdl] backend that does basic shapes and lets you
-move the camera around.
+This is my playground for rewriting diagrams. It's currently at
+the proof of concept stage. I've implemented most of the core
+functionality of diagrams with significant changes in some places. I've
+also added some new features.
+
+The only backend I've ported so far is
+[`diagrams-pgf`](https://github.com/diagrams/diagrams-pgf/tree/diagrams-2.0)
+on the `diagrams-2.0` branch.
+
+I've also started a very basic 3d
+[gl](https://github.com/cchalmers/diagrams-gl) and
+[sdl](https://github.com/cchalmers/diagrams-sdl) backend that does
+spheres, cubes and straight lines shapes. You can move the camera around
+but that's about it.
 
 ### Changes
 
 #### Reshuffling
 
 `diagrams-core` and `diagrams-lib` would no longer be used. `diagrams`
-and [`geometry`] would be used instead. [`geometry`] is a geometry
-library based on `diagrams-lib`. The advantage is that [`geometry`]
+and [`geometry`](https://github.com/cchalmers/geometry) would be used
+instead. [`geometry`](https://github.com/cchalmers/geometry) is a new
+library based on `diagrams-lib`. One advantage is that [`geometry`]
 could be used by other libraries that don't want to depend on diagrams
 (whereas `diagrams-core` can only be used by `diagrams-lib`). Many of
 the old core modules have moved to `Diagrams.Types.X`. The functionality
