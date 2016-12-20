@@ -110,22 +110,12 @@ _Text :: (Typeable n, Num n) => Prism' (Prim V2 n) (Text n)
 _Text = _Prim
 
 -- | Prism onto to an embedded image.
-_EmbeddedImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n Embedded)
-_EmbeddedImage = _Prim
-
--- | Prism onto to an embedded image.
-pattern EmbeddedImagePrim
-  :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
-pattern EmbeddedImagePrim dyn
-  <- (preview _EmbeddedImage -> Just (DImage _ _ (ImageRaster dyn))) where
-  EmbeddedImagePrim img =
-    let w = dynamicMap imageWidth img
-        h = dynamicMap imageHeight img
-    in  Prim (DImage w h (ImageRaster img))
-
--- | Prism onto to an external image.
 _ExternalImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n External)
 _ExternalImage = _Prim
+
+-- | Prism onto to an embedded image.
+_EmbeddedImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n Embedded)
+_EmbeddedImage = _Prim
 
 ------------------------------------------------------------------------
 -- 3D
@@ -166,13 +156,32 @@ pattern PointLight_ :: (Typeable n, Num n) => P3 n -> Colour Double -> Prim V3 n
 pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
   PointLight_ p c = Prim (PointLight p c)
 
-pattern Path_ :: (Typeable v, Additive v, Typeable n, Num n, Typeable n)
+pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
               => Path v n -> Prim v n
 pattern Path_ p <- (preview _Path -> Just p) where
   Path_ p = Prim p
 
--- pattern NaN <- (isNaN -> True) where
---   NaN = 0/0
+pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
+               => UPath v n -> Prim v n
+pattern UPath_ p <- (preview _UPath -> Just p) where
+  UPath_ p = Prim p
+
+pattern Text_ :: (Typeable n, Num n) => Text n -> Prim V2 n
+pattern Text_ p <- (preview _Text -> Just p) where
+  Text_ p = Prim p
+
+pattern EmbeddedImage_ :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
+pattern EmbeddedImage_ dyn
+  <- (preview _EmbeddedImage -> Just (DImage _ _ (ImageRaster dyn))) where
+  EmbeddedImage_ img =
+    let w = dynamicMap imageWidth img
+        h = dynamicMap imageHeight img
+    in  Prim (DImage w h (ImageRaster img))
+
+pattern ExternalImage_ :: (Typeable n, Num n) => Int -> Int -> FilePath -> Prim V2 n
+pattern ExternalImage_ w h path
+  <- (preview _ExternalImage -> Just (DImage w h (ImageRef path))) where
+  ExternalImage_ w h path = Prim (DImage w h (ImageRef path))
 
 -- | Get the normalized scale factor from a vector. For the
 --   'normalizedFactor' of a diagram use this with the 'size' of the
