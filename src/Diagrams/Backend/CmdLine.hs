@@ -256,8 +256,6 @@ class WithOutcome a where
   default withOutcome :: a ~ Outcome a => (Outcome a -> IO ()) -> () -> a -> IO ()
   withOutcome f () r = f r
 
-type instance V (IO a) = V a
-
 resultProxy :: a -> Proxy (Outcome a)
 resultProxy _ = Proxy
 
