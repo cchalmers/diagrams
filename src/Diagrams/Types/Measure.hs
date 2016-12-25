@@ -28,60 +28,62 @@ import           Geometry.Space
 
 import           Linear.Vector
 
+
+
 -- | 'Measured n a' is an object that depends on 'local', 'normalized'
 --   and 'global' scales. The 'normalized' and 'global' scales are
 --   calculated when rendering a diagram.
 --
 --   For attributes, the 'local' scale gets multiplied by the average
 --   scale of the transform.
-newtype Measured n a = Measured { unmeasure :: (n,n,n) -> a }
-  deriving (Typeable, Functor, Applicative, Monad, Additive, R.MonadReader (n,n,n))
+newtype Measured a = Measured { unmeasure :: (Double,Double,Double) -> a }
+  deriving (Typeable, Functor, Applicative, Monad, Additive, R.MonadReader (Double,Double,Double))
 -- (local, global, normalized) -> output
 
-type instance V (Measured n a) = V a
-type instance N (Measured n a) = N a
+type instance V (Measured a) = V a
+type instance N (Measured a) = Double
 
 -- | A measure is a 'Measured' number.
-type Measure n = Measured n n
+type Measure = Measured Double
 
 -- | @fromMeasured globalScale normalizedScale measure -> a@
-fromMeasured :: Num n => n -> n -> Measured n a -> a
+fromMeasured :: Double -> Double -> Measured a -> a
 fromMeasured g n (Measured m) = m (1,g,n)
 
 -- | Output units don't change.
-output :: n -> Measure n
+output :: Double -> Measure
 output = pure
 
 -- | Local units are scaled by the average scale of a transform.
-local :: Num n => n -> Measure n
+local :: Double -> Measure
 local x = views _1 (*x)
 
 -- | Global units are ?
-global :: Num n => n -> Measure n
+global :: Double -> Measure
 global x = views _2 (*x)
 
 -- | Normalized units get scaled so that one normalized unit is the size of the
 --   final diagram.
-normalized :: Num n => n -> Measure n
+normalized :: Double -> Measure
 normalized x = views _3 (*x)
 
 -- | Just like 'normalized' but spelt properly.
-normalised :: Num n => n -> Measure n
+normalised :: Double -> Measure
 normalised x = views _3 (*x)
 
 -- | Scale the local units of a 'Measured' thing.
-scaleLocal :: Num n => n -> Measured n a -> Measured n a
+scaleLocal :: Double -> Measured a -> Measured a
 scaleLocal s = R.local (_1 *~ s)
 
 -- | Calculate the smaller of two measures.
-atLeast :: Ord n => Measure n -> Measure n -> Measure n
+atLeast :: Measure -> Measure -> Measure
 atLeast = liftA2 max
 
 -- | Calculate the larger of two measures.
-atMost :: Ord n => Measure n -> Measure n -> Measure n
+atMost :: Measure -> Measure -> Measure
 atMost = liftA2 min
 
-instance Num a => Num (Measured n a) where
+instance Num a => Num (Measured a) where
   (+) = (^+^)
   (-) = (^-^)
   (*) = liftA2 (*)
@@ -90,13 +92,13 @@ instance Num a => Num (Measured n a) where
   abs         = fmap abs
   signum      = fmap signum
 
-instance Fractional a => Fractional (Measured n a) where
+instance Fractional a => Fractional (Measured a) where
   (/)   = liftA2 (/)
   recip = fmap recip
 
   fromRational = pure . fromRational
 
-instance Floating a => Floating (Measured n a) where
+instance Floating a => Floating (Measured a) where
   pi      = pure pi
   exp     = fmap exp
   sqrt    = fmap sqrt
@@ -116,22 +118,18 @@ instance Floating a => Floating (Measured n a) where
   atanh   = fmap atanh
   acosh   = fmap acosh
 
-instance Semigroup a => Semigroup (Measured n a) where
+instance Semigroup a => Semigroup (Measured a) where
   (<>) = liftA2 (<>)
 
-instance Monoid a => Monoid (Measured n a) where
+instance Monoid a => Monoid (Measured a) where
   mempty  = pure mempty
   mappend = liftA2 mappend
 
-instance Distributive (Measured n) where
+instance Distributive Measured where
   distribute a = Measured $ \x -> fmap (\(Measured m) -> m x) a
 
-instance Representable (Measured n) where
-  type Rep (Measured n) = (n,n,n)
+instance Representable Measured where
+  type Rep Measured = (Double,Double,Double)
   tabulate = Measured
   index    = unmeasure
-
-instance Profunctor Measured where
-  lmap f (Measured m) = Measured $ \(l,g,n) -> m (f l, f g, f n)
-  rmap f (Measured m) = Measured $ f . m
 

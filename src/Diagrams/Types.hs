@@ -86,9 +86,6 @@ module Diagrams.Types
   , Prim (..)
   , _Prim
 
-    -- ** Number classes
-  , TypeableFloat
-
     -- * Reexports
   , module Diagrams.Types.Annotations
   , module Diagrams.Types.Measure
@@ -126,12 +123,6 @@ import qualified Diagrams.Types.Tree as T
 import           Linear.Metric
 import           Linear.V3 (V3)
 
--- | Class of numbers that are 'RealFloat' and 'Typeable'. This class is used to
---   shorten type constraints.
-class (Typeable n, RealFloat n) => TypeableFloat n
-instance (Typeable n, RealFloat n) => TypeableFloat n
--- use class instead of type constraint so users don't need constraint kinds pragma
-
 ------------------------------------------------------------------------
 -- Primitives
 ------------------------------------------------------------------------
@@ -144,14 +135,11 @@ instance (Typeable n, RealFloat n) => TypeableFloat n
 
 -- | A value of type @Prim b v n@ is an opaque (existentially quantified)
 --   primitive which backend @b@ knows how to render in vector space @v@.
-data Prim v n where
-  Prim :: Typeable p => p -> Prim (V p) (N p)
-
-type instance V (Prim v n) = v
-type instance N (Prim v n) = n
+data Prim where
+  Prim :: Typeable p => p -> Prim
 
 -- | Prism onto a 'Prim'.
-_Prim :: (InSpace v n p, Typeable p) => Prism' (Prim v n) p
+_Prim :: Typeable p => Prism' Prim p
 _Prim = prism' Prim (\(Prim p) -> cast p)
 {-# INLINE _Prim #-}
 
@@ -161,9 +149,9 @@ _Prim = prism' Prim (\(Prim p) -> cast p)
 --   order to decide how to draw an arrow, we must know the precise
 --   transformation applied to it (since the arrow head and tail are
 --   scale-invariant).
-data QDiaLeaf v n m
-  = PrimLeaf (Prim v n)
-  | DelayedLeaf (DownAnnots v n -> n -> n -> QDiagram v n m)
+data QDiaLeaf v m
+  = PrimLeaf Prim
+  | DelayedLeaf (DownAnnots v -> Double -> Double -> QDiagram v m)
   -- ^ The @QDiagram@ produced by a @DelayedLeaf@ function /must/
   --   already apply any transformation in the given @DownAnnots@ (that
   --   is, the transformation will not be applied by the context).
@@ -194,31 +182,31 @@ data QDiaLeaf v n m
 --   distinguished from 'Diagram', where @m@ is fixed to @Any@. This
 --   is not really a very good name, but it's probably not worth
 --   changing it at this point.
-newtype QDiagram v n m = QD
+newtype QDiagram v m = QD
   (T.IDUAL
     AName
-    (DownAnnots v n)
-    (UpAnnots v n m)
-    (UpModify v n)
-    (Annotation v n)
-    (QDiaLeaf v n m)
+    (DownAnnots v)
+    (UpAnnots v m)
+    (UpModify v)
+    (Annotation v)
+    (QDiaLeaf v m)
   )
 
-instance Rewrapped (QDiagram v n m) (QDiagram v' n' m')
-instance Wrapped (QDiagram v n m) where
-  type Unwrapped (QDiagram v n m) =
+instance Rewrapped (QDiagram v m) (QDiagram v' m')
+instance Wrapped (QDiagram v m) where
+  type Unwrapped (QDiagram v m) =
     T.IDUAL
       AName
-      (DownAnnots v n)
-      (UpAnnots v n m)
-      (UpModify v n)
-      (Annotation v n)
-      (QDiaLeaf v n m)
+      (DownAnnots v)
+      (UpAnnots v m)
+      (UpModify v)
+      (Annotation v)
+      (QDiaLeaf v m)
   _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
-type instance V (QDiagram v n m) = v
-type instance N (QDiagram v n m) = n
+type instance V (QDiagram v m) = v
+type instance N (QDiagram v m) = Double
 
 -- | @Diagram v@ is a synonym for @'QDiagram' v Double Any@. That is,
 --   the default sort of diagram is one where querying at a point
@@ -226,96 +214,93 @@ type instance N (QDiagram v n m) = n
 --   Transforming a default diagram into one with a more interesting
 --   query can be done via the 'Functor' instance of @'QDiagram' v n@ or
 --   the 'value' function.
-type Diagram v = QDiagram v Double Any
+type Diagram v = QDiagram v Any
 
 -- | Construct a diagram made up from an up annotation.
-upDiagram :: UpAnnots v n m -> QDiagram v n m
+upDiagram :: UpAnnots v m -> QDiagram v m
 upDiagram = QD . T.leafU
 {-# INLINE upDiagram #-}
 
 -- | Construct a 'upDiagram' by apply a function to the empty up
 --   annotations.
-upWith :: Monoid m => (UpAnnots v n m -> UpAnnots v n m) -> QDiagram v n m
+upWith :: Monoid m => (UpAnnots v m -> UpAnnots v m) -> QDiagram v m
 upWith f = upDiagram (f emptyUp)
 {-# INLINE upWith #-}
 
 -- | Create a \"point diagram\", which has no content, no trace, an
 --   empty query, and a point envelope.
 pointDiagram
-  :: (Metric v, Fractional n, Monoid m)
-  => Point v n
-  -> QDiagram v n m
+  :: (Metric v, Monoid m)
+  => Point v Double
+  -> QDiagram v m
 pointDiagram p = upWith $ upEnvelope .~ pointEnvelope p
 {-# INLINE pointDiagram #-}
 
 -- | Modify the envelope. (Are there laws we need to satisfy?)
-modEnvelope
-  :: (Envelope v n -> Envelope v n) -> QDiagram v n m -> QDiagram v n m
+modEnvelope :: (Envelope v Double -> Envelope v Double) -> QDiagram v m -> QDiagram v m
 modEnvelope f = over _Wrapped' $ T.modU (EnvMod f)
 {-# INLINE modEnvelope #-}
 
 -- | Modify the trace. (Are there laws we need to satisfy?)
-modTrace :: (Trace v n -> Trace v n) -> QDiagram v n m -> QDiagram v n m
+modTrace :: (Trace v Double -> Trace v Double) -> QDiagram v m -> QDiagram v m
 modTrace f = over _Wrapped' $ T.modU (TraceMod f)
 {-# INLINE modTrace #-}
 
 -- | Apply an annotation.
-applyAnnot :: AnnotationSpace a v n => AReview a r -> r -> QDiagram v n m -> QDiagram v n m
+applyAnnot :: AnnotationSpace a v => AReview a r -> r -> QDiagram v m -> QDiagram v m
 applyAnnot l r = over _Wrapped' $ T.annot (mkAnnot l r)
 {-# INLINE applyAnnot #-}
 
 -- | Traversal over all subdiagrams labeled with all 'AName's in the
 --   name.
 named
-  :: (IsName nm, HasLinearMap v, OrderedField n, Semigroup m)
-  => nm -> Traversal' (QDiagram v n m) (QDiagram v n m)
+  :: (IsName nm, HasLinearMap v, Semigroup m)
+  => nm -> Traversal' (QDiagram v m) (QDiagram v m)
 named (toName -> Name ns) = _Wrapped' . T.traverseSub ns . _Unwrapped'
 
 -- | Traversal over the styles of each leaf.
-styles
-  :: (HasLinearMap v, OrderedField n)
-  => Traversal' (QDiagram v n m) (Style v n)
+styles :: HasLinearMap v => Traversal' (QDiagram v m) (Style v)
 styles = _Wrapped . T.downs . downStyle
 
 -- | Get a list of names of subdiagrams and their locations.
 -- names :: (Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
---       => QDiagram v n m -> [(Name, [Point v n])]
+--       => QDiagram v m -> [(Name, [Point v n])]
 -- names = (map . second . map) location . M.assocs . view (subMap . _Wrapped')
 
 -- | Lookup the most recent diagram associated with (some
 --   qualification of) the given name.
 -- lookupName :: (IsName nm, Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
---            => nm -> QDiagram v n m -> Maybe (Subdiagram b v n m)
+--            => nm -> QDiagram v m -> Maybe (Subdiagram b v m)
 -- lookupName n d = lookupSub (toName n) (d^.subMap) >>= listToMaybe
 
 -- | \"Localize\" a diagram by hiding all the names, so they are no
 --   longer visible to the outside.
-localize :: QDiagram v n m -> QDiagram v n m
+localize :: QDiagram v m -> QDiagram v m
 localize = over _Wrapped' T.resetLabels
 
 -- | Make a QDiagram using the default envelope, trace and query for the
 --   primitive.
 primQD
-  :: (InSpace v n a, Typeable a, Enveloped a, Traced a, HasQuery a m)
+  :: (InSpace v Double a, Typeable a, Enveloped a, Traced a, HasQuery a m)
   => a
-  -> QDiagram v n m
+  -> QDiagram v m
 primQD a = mkQD (Prim a) (getEnvelope a) (getTrace a) (getQuery a)
 {-# INLINE primQD #-}
 
 -- | Create a diagram from a single primitive, along with an envelope,
 --   trace, subdiagram map, and query function.
-mkQD :: Prim v n -> Envelope v n -> Trace v n -> Query v n m -> QDiagram v n m
+mkQD :: Prim -> Envelope v Double -> Trace v Double -> Query v Double m -> QDiagram v m
 mkQD p = mkQD' (PrimLeaf p)
 {-# INLINE mkQD #-}
 
 -- | Create a diagram from a generic QDiaLeaf, along with an envelope,
 --   trace, subdiagram map, and query function.
 mkQD'
-  :: QDiaLeaf v n m
-  -> Envelope v n
-  -> Trace v n
-  -> Query v n m
-  -> QDiagram v n m
+  :: QDiaLeaf v m
+  -> Envelope v Double
+  -> Trace v Double
+  -> Query v Double m
+  -> QDiagram v m
 mkQD' l e t q = QD $ T.leaf (UpAnnots e t q) l
 {-# INLINE mkQD' #-}
 
@@ -335,75 +320,72 @@ mkQD' l e t q = QD $ T.leaf (UpAnnots e t q) l
 --   probably only makes sense in vector spaces of dimension lower
 --   than 3, but in theory it could make sense for, say, 3-dimensional
 --   diagrams when viewed by 4-dimensional beings.
-instance Monoid (QDiagram v n m) where
+instance Monoid (QDiagram v m) where
   mempty  = QD mempty
   {-# INLINE mempty  #-}
   mappend = (<>)
   {-# INLINE mappend #-}
 
-instance Semigroup (QDiagram v n m) where
+instance Semigroup (QDiagram v m) where
   QD d1 <> QD d2 = QD (d2 <> d1)
   {-# INLINE (<>) #-}
     -- swap order so that primitives of d2 come first, i.e. will be
     -- rendered first, i.e. will be on the bottom.
 
-instance Functor (QDiagram v n) where
+instance Functor (QDiagram v) where
   fmap f (QD d) = QD $ T.mapUAL (fmap f) id (fmap f) d
   {-# INLINE fmap #-}
 
-instance HasLinearMap v => ApplyStyle (QDiagram v n m) where
+instance HasLinearMap v => ApplyStyle (QDiagram v m) where
   applyStyle = over _Wrapped' . T.down . inR
   {-# INLINE applyStyle #-}
 
-instance (HasLinearMap v, OrderedField n, Monoid' m)
-    => HasQuery (QDiagram v n m) m where
+instance (HasLinearMap v, Monoid' m)
+    => HasQuery (QDiagram v m) m where
   getQuery = foldU (\u e -> view upQuery u <> e) mempty
   {-# INLINE getQuery #-}
 
-instance (Metric v, HasLinearMap v, OrderedField n)
-    => Juxtaposable (QDiagram v n m) where
+instance (Metric v, HasLinearMap v)
+    => Juxtaposable (QDiagram v m) where
   juxtapose = juxtaposeDefault
   {-# INLINE juxtapose #-}
 
-instance (HasLinearMap v, OrderedField n) => Enveloped (QDiagram v n m) where
+instance HasLinearMap v => Enveloped (QDiagram v m) where
   getEnvelope = foldU (\u e -> view upEnvelope u <> e) EmptyEnvelope
   {-# INLINE getEnvelope #-}
 
 -- | Fold over all up annotation in a diagram.
-foldU
-  :: (HasLinearMap v, OrderedField n)
-  => (UpAnnots v n m -> b -> b) -> b -> QDiagram v n m -> b
+foldU :: HasLinearMap v => (UpAnnots v m -> b -> b) -> b -> QDiagram v m -> b
 foldU f b0 (QD t) = T.foldU f b0 t
 
-instance (HasLinearMap v, OrderedField n) => Traced (QDiagram v n m) where
+instance HasLinearMap v => Traced (QDiagram v m) where
   getTrace = foldU (\u e -> view upTrace u <> e) mempty
   {-# INLINE getTrace #-}
 
-instance (Metric v, HasLinearMap v, OrderedField n)
-    => HasOrigin (QDiagram v n m) where
+instance (Metric v, HasLinearMap v) => HasOrigin (QDiagram v m) where
   moveOriginTo = translate . (origin .-.)
   {-# INLINE moveOriginTo #-}
 
-instance Transformable (QDiagram v n m) where
+instance Transformable (QDiagram v m) where
   transform = over _Wrapped' . T.down . inL
   {-# INLINE transform #-}
 
 -- instance (HasLinearMap v, OrderedField n)
---     => Alignable (QDiagram v n m) where
+--     => Alignable (QDiagram v m) where
 --   defaultBoundary = envelopeBoundary
 --   {-# INLINE defaultBoundary #-}
 
-instance Qualifiable (QDiagram v n m) where
+instance Qualifiable (QDiagram v m) where
   (toName -> Name nms) .>> QD t = QD (T.labels nms t)
   {-# INLINE (.>>) #-}
 
-instance (OrderedField n, Typeable n) => CuboidLike (QDiagram V3 n Any) where
+instance CuboidLike (QDiagram V3 Any) where
   cube = primQD Cube
 
-instance (OrderedField n, Typeable n) => EllipsoidLike (QDiagram V3 n Any) where
+instance EllipsoidLike (QDiagram V3 Any) where
   sphere = primQD Sphere
 
-instance TypeableFloat n => FrustumLike (QDiagram V3 n Any) where
+instance FrustumLike (QDiagram V3 Any) where
   frustum a b = primQD (Frustum a b)
 
 ------------------------------------------------------------
@@ -414,21 +396,21 @@ instance TypeableFloat n => FrustumLike (QDiagram V3 n Any) where
 --   of a larger diagram.  Essentially, it consists of a diagram
 --   paired with any accumulated information from the larger context
 --   (transformations, attributes, etc.).
-newtype SubDiagram v n m = SubDiagram
+newtype SubDiagram v m = SubDiagram
   (T.SubIDUAL
     AName
-    (DownAnnots v n)
-    (UpAnnots v n m)
-    (UpModify v n)
-    (Annotation v n)
-    (QDiaLeaf v n m)
+    (DownAnnots v)
+    (UpAnnots v m)
+    (UpModify v)
+    (Annotation v)
+    (QDiaLeaf v m)
   )
 
-type instance V (SubDiagram v n m) = v
-type instance N (SubDiagram v n m) = n
+type instance V (SubDiagram v m) = v
+type instance N (SubDiagram v m) = Double
 
 -- | Turn a diagram into a subdiagram with no accumulated context.
--- mkSubdiagram :: QDiagram v n m -> Subdiagram v n m
+-- mkSubdiagram :: QDiagram v m -> Subdiagram v m
 -- mkSubdiagram d = Subdiagram d id id empty
 
 -- | Get the location of a subdiagram; that is, the location of its
@@ -436,8 +418,7 @@ type instance N (SubDiagram v n m) = n
 --   diagram.  In other words, the point where its local origin
 --   \"ended up\".
 subLocation
-  :: (HasLinearMap v, Num n)
-  => SubDiagram v n m -> Point v n
+  :: HasLinearMap v => SubDiagram v m -> Point v Double
 subLocation (SubDiagram sub) = case T.accumDown sub of
   Just d  -> papply (killR d) origin
   Nothing -> origin
@@ -449,20 +430,20 @@ subLocation (SubDiagram sub) = case T.accumDown sub of
 --   attributes.  @getSub@ simply applies the transformation and
 --   attributes to the diagram to get the corresponding \"top-level\"
 --   diagram.
-getSub :: SubDiagram v n m -> QDiagram v n m
+getSub :: SubDiagram v m -> QDiagram v m
 getSub (SubDiagram sub) = QD (T.subPos sub)
 
 -- | Return all named subdiagrams with the names attacted to them.
 allSubs
-  :: (HasLinearMap v, OrderedField n, Monoid' m)
-  => QDiagram v n m -> [(Name, SubDiagram v n m)]
+  :: (HasLinearMap v, Monoid' m)
+  => QDiagram v m -> [(Name, SubDiagram v m)]
 allSubs (QD t) = map (\(is,st) -> (Name is, SubDiagram st)) (T.allSubs t)
 
 -- | Return the full diagram with the subdiagram modified.
 modSub
-  :: (QDiagram v n m -> QDiagram v n m)
-  -> SubDiagram v n m
-  -> QDiagram v n m
+  :: (QDiagram v m -> QDiagram v m)
+  -> SubDiagram v m
+  -> QDiagram v m
 modSub f (SubDiagram sub) = QD $ T.subPeek sub $ coerce f (T.subPos sub)
 
 ------------------------------------------------------------------------
@@ -471,34 +452,34 @@ modSub f (SubDiagram sub) = QD $ T.subPeek sub $ coerce f (T.subPos sub)
 
 -- | A 'SubMap' is a map associating names to subdiagrams. There can
 --   be multiple associations for any given name.
--- newtype SubMap v n m = SubMap
+-- newtype SubMap v m = SubMap
 --   (T.SubMap
 --     AName
---     (DownAnnots v n)
---     (UpAnnots v n m)
---     (Annotation v n)
---     (QDiaLeaf v n m)
+--     (DownAnnots v)
+--     (UpAnnots v m)
+--     (Annotation v)
+--     (QDiaLeaf v m)
 --   )
 
--- instance Wrapped (SubMap b v n m) where
---   type Unwrapped (SubMap b v n m) = M.Map AName T.SubMap AName (DownAnnots v n) (UpAnnots v n m) (QDiaLeaf v n m)
+-- instance Wrapped (SubMap b v m) where
+--   type Unwrapped (SubMap b v m) = M.Map AName T.SubMap AName (DownAnnots v) (UpAnnots v m) (QDiaLeaf v m)
 --   _Wrapped' = iso (\(SubMap m) -> m) SubMap
--- instance Rewrapped (SubMap b v n m) (SubMap b' v' n' m')
+-- instance Rewrapped (SubMap b v m) (SubMap b' v' n' m')
 
--- type instance V (SubMap v n m) = v
--- type instance N (SubMap v n m) = n
+-- type instance V (SubMap v m) = v
+-- type instance N (SubMap v m) = n
 
--- getSubMap :: (HasLinearMap v, OrderedField n, Monoid' m) => QDiagram v n m -> SubMap v n m
+-- getSubMap :: (HasLinearMap v, OrderedField n, Monoid' m) => QDiagram v m -> SubMap v m
 -- getSubMap (QD d) = SubMap (T.getSubMap d)
 
--- subLookup :: IsName nm => nm -> SubMap v n m -> [SubDiagram v n m]
+-- subLookup :: IsName nm => nm -> SubMap v m -> [SubDiagram v m]
 -- subLookup (toName -> Name nms) (SubMap m) = coerce $ T.lookupSub nms m
 
 -- | Look for the given name in a name map, returning a list of
 --   subdiagrams associated with that name.  If no names match the
 --   given name exactly, return all the subdiagrams associated with
 --   names of which the given name is a suffix.
--- lookupSub :: IsName nm => nm -> SubMap b v n m -> Maybe [Subdiagram b v n m]
+-- lookupSub :: IsName nm => nm -> SubMap b v m -> Maybe [Subdiagram b v m]
 -- lookupSub a (SubMap m)
 --   = M.lookup n m `mplus`
 --     (flattenNames . filter ((n `nameSuffixOf`) . fst) . M.assocs $ m)

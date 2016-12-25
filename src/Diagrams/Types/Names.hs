@@ -204,7 +204,7 @@ instance Qualifiable a => Qualifiable (M.Map k a) where
 instance Qualifiable a => Qualifiable (b -> a) where
   n .>> f = (n .>>) . f
 
-instance Qualifiable a => Qualifiable (Measured n a) where
+instance Qualifiable a => Qualifiable (Measured a) where
   n .>> m = fmap (n .>>) m
 
 infixr 5 .>>

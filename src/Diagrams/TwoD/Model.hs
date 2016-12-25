@@ -66,13 +66,13 @@ import           Linear.Vector
 ------------------------------------------------------------------------
 
 -- | Options for displaying the origin.
-data OriginOpts = OriginOpts (Style V2 Double) (Measure Double)
+data OriginOpts = OriginOpts (Style V2) Measure
 
 type instance V OriginOpts = V2
 type instance N OriginOpts = Double
 
 -- | The size of the displayed origin.
-originSize :: Lens' OriginOpts (Measure Double)
+originSize :: Lens' OriginOpts Measure
 originSize f (OriginOpts sty sz) = OriginOpts sty <$> f sz
 
 instance Default OriginOpts where
@@ -85,14 +85,14 @@ instance HasStyle OriginOpts where
   style f (OriginOpts sty sz) = f sty <&> \sty' -> OriginOpts sty' sz
 
 -- | Mark the origin of a diagram by placing a red dot 1/50th its size.
-showOrigin :: Monoid' m => QDiagram V2 Double m -> QDiagram V2 Double m
+showOrigin :: Monoid' m => QDiagram V2 m -> QDiagram V2 m
 showOrigin = showOrigin' def
 
 -- | Mark the origin of a diagram, with control over colour and scale
 -- of marker dot.
 showOrigin'
   :: Monoid' m
-  => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
+  => OriginOpts -> QDiagram V2 m -> QDiagram V2 m
 showOrigin' (OriginOpts sty m) d = o <> d
   where
     o = uStroke (circle sz)
@@ -107,7 +107,7 @@ showOrigin' (OriginOpts sty m) d = o <> d
 ------------------------------------------------------------------------
 
 -- | Options for displaying the envelope approximation.
-data EnvelopeOpts = EnvelopeOpts (Style V2 Double) Bool Int
+data EnvelopeOpts = EnvelopeOpts (Style V2) Bool Int
 
 type instance V EnvelopeOpts = V2
 type instance N EnvelopeOpts = Double
@@ -164,7 +164,7 @@ showEnvelope = showEnvelope' def
 -- makeLenses ''TraceOpts
 
 -- | Options for displaying the envelope approximation.
-data TraceOpts = TraceOpts (Style V2 Double) Bool Int
+data TraceOpts = TraceOpts (Style V2) Bool Int
 
 type instance V TraceOpts = V2
 type instance N TraceOpts = Double
@@ -219,8 +219,8 @@ showTrace = showTrace' def
 ------------------------------------------------------------------------
 
 mkLabels
-  :: (TypeableFloat n, Monoid' m)
-  => (String -> QDiagram V2 n m) -> QDiagram V2 n m -> QDiagram V2 n m
+  :: (Monoid' m)
+  => (String -> QDiagram V2 m) -> QDiagram V2 m -> QDiagram V2 m
 mkLabels f d = foldMap mkLabel (allSubs d) where
   mkLabel (nm, sub) = f (prettyName nm) # moveTo (subLocation sub)
 

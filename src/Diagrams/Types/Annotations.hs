@@ -90,26 +90,26 @@ import           Diagrams.Types.Style
 --   * traces (see "Geometry.Trace"), also modifiable
 --
 --   * query functions (see "Geometry.Query")
-data UpAnnots v n m = UpAnnots (Envelope v n) (Trace v n) (Query v n m)
+data UpAnnots v m = UpAnnots (Envelope v Double) (Trace v Double) (Query v Double m)
 
-type instance V (UpAnnots v n m) = v
-type instance N (UpAnnots v n m) = n
+type instance V (UpAnnots v m) = v
+type instance N (UpAnnots v m) = Double
 
-instance (Metric v, HasLinearMap v, OrderedField n) => Transformable (UpAnnots v n m) where
+instance (Metric v, HasLinearMap v) => Transformable (UpAnnots v m) where
   transform t (UpAnnots e tr q) =
     UpAnnots (transform t e) (transform t tr) (transform t q)
   {-# INLINE transform #-}
 
-instance (Ord n, Semigroup m) => Semigroup (UpAnnots v n m) where
+instance Semigroup m => Semigroup (UpAnnots v m) where
   UpAnnots e1 t1 q1 <> UpAnnots e2 t2 q2 = UpAnnots (e1<>e2) (t1<>t2) (q1<>q2)
   {-# INLINE (<>) #-}
 
-instance Functor (UpAnnots v n) where
+instance Functor (UpAnnots v) where
   fmap f = upQuery %~ fmap f
   {-# INLINE fmap #-}
 
 -- | 'mempty' for 'UpAnnots' with less constraints.
-emptyUp :: Monoid m => UpAnnots v n m
+emptyUp :: Monoid m => UpAnnots v m
 emptyUp =
   UpAnnots
     EmptyEnvelope
@@ -117,7 +117,7 @@ emptyUp =
     mempty
 {-# INLINE emptyUp #-}
 
-instance (Ord n, Semigroup m, Monoid m) => Monoid (UpAnnots v n m) where
+instance (Semigroup m, Monoid m) => Monoid (UpAnnots v m) where
   mempty = emptyUp
   {-# INLINE mempty  #-}
   mappend = (<>)
@@ -131,34 +131,34 @@ instance (Ord n, Semigroup m, Monoid m) => Monoid (UpAnnots v n m) where
 -- subdiagram, the change in envelope would not pass this point.
 
 -- | Lens onto the envelope of an up annotation.
-upEnvelope :: Lens' (UpAnnots v n m) (Envelope v n)
+upEnvelope :: Lens' (UpAnnots v m) (Envelope v Double)
 upEnvelope f (UpAnnots e t q) = f e <&> \e' -> UpAnnots e' t q
 {-# INLINE upEnvelope #-}
 
 -- | Lens onto the trace of an up annotation.
-upTrace :: Lens' (UpAnnots v n m) (Trace v n)
+upTrace :: Lens' (UpAnnots v m) (Trace v Double)
 upTrace f (UpAnnots e t q) = f t <&> \t' -> UpAnnots e t' q
 {-# INLINE upTrace #-}
 
 -- | Lens onto the envelope of an up annotation.
-upQuery :: Lens (UpAnnots v n m) (UpAnnots v n m') (Query v n m) (Query v n m')
+upQuery :: Lens (UpAnnots v m) (UpAnnots v m') (Query v Double m) (Query v Double m')
 upQuery f (UpAnnots e t q) = f q <&> \q' -> UpAnnots e t q'
 {-# INLINE upQuery #-}
 
 -- Up modifier ---------------------------------------------------------
 
 -- | Modifications to the envelope or trace of the diagram below.
-data UpModify v n
-  = EnvMod (Envelope v n -> Envelope v n)
-  | TraceMod (Trace v n -> Trace v n)
+data UpModify v
+  = EnvMod (Envelope v Double -> Envelope v Double)
+  | TraceMod (Trace v Double -> Trace v Double)
 
-instance (HasLinearMap v, OrderedField n) => Action (DownAnnots v n) (UpModify v n) where
+instance HasLinearMap v => Action (DownAnnots v) (UpModify v) where
   act d = \case
     EnvMod f   -> EnvMod   $ transform t . f . transform (inv t)
     TraceMod f -> TraceMod $ transform t . f . transform (inv t)
     where t = killR d
 
-instance Action (UpModify v n) (UpAnnots v n m) where
+instance Action (UpModify v) (UpAnnots v m) where
   act (EnvMod f) = upEnvelope %~ f
   act (TraceMod f) = upTrace %~ f
 
@@ -170,11 +170,9 @@ instance Action (UpModify v n) (UpAnnots v n m) where
 --
 --   * styles (see "Diagrams.Types.Style")
 --   * transform (see "Geometry.Transform")
-type DownAnnots v n = Transformation v n :+: Style v n
+type DownAnnots v = Transformation v Double :+: Style v
 
-downStyle
- :: (HasLinearMap v, OrderedField n)
- => Lens' (DownAnnots v n) (Style v n)
+downStyle :: HasLinearMap v => Lens' (DownAnnots v) (Style v)
 downStyle f d = f s <&> \s' -> inR s' <> inL t
   where (t, s) = untangle d
 
@@ -201,51 +199,51 @@ data AnnotS k where
 instance SingAnnot 'IAnnot where sing = I
 instance SingAnnot 'TAnnot where sing = T
 
-type family Annotation' k a v n :: Constraint where
-  Annotation' 'IAnnot a v n = AnnotType a ~ 'IAnnot
-  Annotation' 'TAnnot a v n = (AnnotType a ~ 'TAnnot, InSpace v n a, Transformable a)
+type family Annotation' k a v :: Constraint where
+  Annotation' 'IAnnot a v = AnnotType a ~ 'IAnnot
+  Annotation' 'TAnnot a v = (AnnotType a ~ 'TAnnot, InSpace v Double a, Transformable a)
 
-type AnnotationSpace a v n = (AnnotationClass a, Annotation' (AnnotType a) a v n, SingAnnot (AnnotType a))
+type AnnotationSpace a v = (AnnotationClass a, Annotation' (AnnotType a) a v, SingAnnot (AnnotType a))
 
 -- | Static annotations are placed at the roots of diagrams and affect
 --   everything below them. Unlike 'Style's, they are not pushed to each
 --   'Prim', they stay where they are when rendering.
 --
 --   Annotations are used for things like 'opacityGroup's and 'clip's.
-data Annotation v n where
-  IAnnotation :: (AnnotationClass a, AnnotType a ~ 'IAnnot) => !a -> Annotation v n
-  TAnnotation :: (AnnotationClass a, InSpace v n a, AnnotType a ~ 'TAnnot,
-                  Transformable a) => !a -> Annotation v n
+data Annotation v where
+  IAnnotation :: (AnnotationClass a, AnnotType a ~ 'IAnnot) => !a -> Annotation v
+  TAnnotation :: (AnnotationClass a, InSpace v Double a, AnnotType a ~ 'TAnnot,
+                  Transformable a) => !a -> Annotation v
 
-type instance V (Annotation v n) = v
-type instance N (Annotation v n) = n
+type instance V (Annotation v) = v
+type instance N (Annotation v) = Double
 
-instance Transformable (Annotation v n) where
+instance Transformable (Annotation v) where
   transform t (TAnnotation a) = TAnnotation (transform t a)
   transform _ iannot          = iannot
   {-# INLINE transform #-}
 
 -- | Annotations ignore styles.
-instance ApplyStyle (Annotation v n) where
+instance ApplyStyle (Annotation v) where
   applyStyle _ a = a
 
 -- | Construct an annotation given a review onto the internal type.
-mkAnnot :: AnnotationSpace a v n => AReview a r -> r -> Annotation v n
+mkAnnot :: AnnotationSpace a v => AReview a r -> r -> Annotation v
 mkAnnot = mkAnnot' . review
 {-# INLINE mkAnnot #-}
 
-mkAnnot' :: forall a v n r. AnnotationSpace a v n => (r -> a) -> r -> Annotation v n
+mkAnnot' :: forall a v r. AnnotationSpace a v => (r -> a) -> r -> Annotation v
 mkAnnot' ra r =
   case sing :: AnnotS (AnnotType a) of
     I -> IAnnotation (ra r)
     T -> TAnnotation (ra r)
 
 -- | Extract an annotation. Used by backends.
-getAnnot :: AnnotationClass a => Getting r a r -> Annotation v n -> Maybe r
+getAnnot :: AnnotationClass a => Getting r a r -> Annotation v -> Maybe r
 getAnnot l = fromAnnot (view l)
 {-# INLINE getAnnot #-}
 
-fromAnnot :: forall a r v n. AnnotationClass a => (a -> r) -> Annotation v n -> Maybe r
+fromAnnot :: forall a r v. AnnotationClass a => (a -> r) -> Annotation v -> Maybe r
 fromAnnot ar = \case
   IAnnotation a -> case eq a of Just Refl -> Just (ar a); Nothing -> Nothing
   TAnnotation a -> case eq a of Just Refl -> Just (ar a); Nothing -> Nothing

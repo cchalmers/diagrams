@@ -119,19 +119,19 @@ import           GHC.Exts
 data AttrKind = IAttr | MAttr | TAttr
 
 -- | The space constraint for the attribute.
-type family Attribute' k a (v :: * -> *) n :: Constraint where
-  Attribute' 'IAttr a v n = (AttrType a ~ 'IAttr)
-  Attribute' 'MAttr a v n = (AttrType a ~ 'MAttr)
-  Attribute' 'TAttr a v n = (InSpace v n a, Transformable a, AttrType a ~ 'TAttr)
+type family Attribute' k a (v :: * -> *) :: Constraint where
+  Attribute' 'IAttr a v = (AttrType a ~ 'IAttr)
+  Attribute' 'MAttr a v = (AttrType a ~ 'MAttr)
+  Attribute' 'TAttr a v = (InSpace v Double a, Transformable a, AttrType a ~ 'TAttr)
 
 -- | The constraint for an attribute.
 --
 --  @
---  'AttrType' a ~ 'IAttr' => 'AttributeSpace' a v n = 'AttributeClass' a
---  'AttrType' a ~ 'MAttr' => 'AttributeSpace' a v n = 'AttributeClass' a
---  'AttrType' a ~ 'TAttr' => 'AttributeSpace' a v n = ('AttributeClass' a, 'InSpace' a v n, 'Transformable' a)
+--  'AttrType' a ~ 'IAttr' => 'AttributeSpace' a v = 'AttributeClass' a
+--  'AttrType' a ~ 'MAttr' => 'AttributeSpace' a v = 'AttributeClass' a
+--  'AttrType' a ~ 'TAttr' => 'AttributeSpace' a v = ('AttributeClass' a, 'InSpace' a v, 'Transformable' a)
 --  @
-type AttributeSpace a v n = (AttributeClass a, Attribute' (AttrType a) a v n, SingAttr (AttrType a))
+type AttributeSpace a v = (AttributeClass a, Attribute' (AttrType a) a v, SingAttr (AttrType a))
 -- Note that Attribute class does not mention v or n so we can't have
 -- AttributeSpace as a superclass of AttributeClass.
 
@@ -144,19 +144,19 @@ class (Typeable a, Semigroup a) => AttributeClass a where
   type AttrType a :: AttrKind
 
 -- | The representation used for an attribute kind.
-type family Rep' k n a where
-  Rep' 'IAttr n a = a
-  Rep' 'MAttr n a = Measured n a
-  Rep' 'TAttr n a = a
+type family Rep' k a where
+  Rep' 'IAttr a = a
+  Rep' 'MAttr a = Measured a
+  Rep' 'TAttr a = a
 
 -- | The representation used for an attribute.
 --
 --  @
---  'AttrType' a ~ 'IAttr' => 'Rep' a n r = r
---  'AttrType' a ~ 'MAttr' => 'Rep' a n r = 'Measured' n r
---  'AttrType' a ~ 'TAttr' => 'Rep' a n r = r
+--  'AttrType' a ~ 'IAttr' => 'Rep' a r = r
+--  'AttrType' a ~ 'MAttr' => 'Rep' a r = 'Measured' r
+--  'AttrType' a ~ 'TAttr' => 'Rep' a r = r
 --  @
-type Rep a n r = Rep' (AttrType a) n r
+type Rep a r = Rep' (AttrType a) r
 
 -- Singletons for the attribute kind. This allows us bring the type of
 -- attribute we're dealing with in scope.
@@ -178,17 +178,17 @@ instance SingAttr 'TAttr where sing = T
 ------------------------------------------------------------------------
 
 -- | An existential wrapper type to hold attributes.
-data Attribute (v :: * -> *) n where
-  IAttribute :: (AttributeClass a, AttrType a ~ 'IAttr) => a -> Attribute v n
-  MAttribute :: (AttributeClass a, AttrType a ~ 'MAttr) => Measured n a -> Attribute v n
-  TAttribute :: (AttributeClass a, InSpace v n a, Transformable a, AttrType a ~ 'TAttr)
-             => a -> Attribute v n
+data Attribute (v :: * -> *) where
+  IAttribute :: (AttributeClass a, AttrType a ~ 'IAttr) => a -> Attribute v
+  MAttribute :: (AttributeClass a, AttrType a ~ 'MAttr) => Measured a -> Attribute v
+  TAttribute :: (AttributeClass a, InSpace v Double a, Transformable a, AttrType a ~ 'TAttr)
+             => a -> Attribute v
 
-type instance V (Attribute v n) = v
-type instance N (Attribute v n) = n
+type instance V (Attribute v) = v
+type instance N (Attribute v) = Double
 
 -- | Display the type of attribute used. Useful for debugging.
-instance Show (Attribute v n) where
+instance Show (Attribute v) where
   showsPrec d attr = showParen (d > 10) $ case attr of
     IAttribute a -> showString "IAttribute " . showsPrec 11 (typeOf a)
     MAttribute a -> showString "MAttribute " . showsPrec 11 (mType a)
@@ -197,7 +197,7 @@ instance Show (Attribute v n) where
 -- | 'TAttribute's are transformed directly, 'MAttribute's have their
 --   local scale multiplied by the average scale of the transform.
 --   Inert 'Attribute's are unaffected.
-instance (Additive v, Traversable v, Floating n) => Transformable (Attribute v n) where
+instance (Additive v, Traversable v) => Transformable (Attribute v) where
   transform _ (IAttribute a) = IAttribute a
   transform t (MAttribute a) = MAttribute $ scaleLocal (avgScale t) a
   transform t (TAttribute a) = TAttribute $ transform t a
@@ -210,18 +210,18 @@ instance (Additive v, Traversable v, Floating n) => Transformable (Attribute v n
 -- 'attribute' :: 'MAttribute' a => 'AnIso'' a r -> 'Prism'' 'Attribute' ('Measured' r)
 -- 'attribute' :: 'TAttribute' a => 'AnIso'' a r -> 'Prism'' 'Attribute' r
 -- @
-attribute :: AttributeSpace a v n => AnIso' a r -> Prism' (Attribute v n) (Rep a n r)
+attribute :: AttributeSpace a v => AnIso' a r -> Prism' (Attribute v) (Rep a r)
 attribute l = withIso l $ \ar ra -> prism' (mkAttr ra) (fromAttr ar)
 {-# INLINE attribute #-}
 
-mkAttr :: forall a v n r. AttributeSpace a v n => (r -> a) -> Rep a n r -> Attribute v n
+mkAttr :: forall a v r. AttributeSpace a v => (r -> a) -> Rep a r -> Attribute v
 mkAttr ra r =
   case sing :: AttrS (AttrType a) of
     I -> IAttribute (ra r)
     M -> MAttribute (fmap ra r)
     T -> TAttribute (ra r)
 
-fromAttr :: forall a r v n. AttributeClass a => (a -> r) -> Attribute v n -> Maybe (Rep a n r)
+fromAttr :: forall a r v. AttributeClass a => (a -> r) -> Attribute v -> Maybe (Rep a r)
 fromAttr ar = \case
   IAttribute a -> case eq a  of Just Refl -> Just (ar a);     Nothing -> Nothing
   MAttribute a -> case eqM a of Just Refl -> Just (ar <$> a); Nothing -> Nothing
@@ -229,19 +229,19 @@ fromAttr ar = \case
   where
     eq :: Typeable a' => a' -> Maybe (a' :~: a)
     eq _ = eqT
-    eqM :: Typeable a' => Measured n a' -> Maybe (a' :~: a)
+    eqM :: Typeable a' => Measured a' -> Maybe (a' :~: a)
     eqM _ = eqT
 
 -- | Type of an attribute that is stored with a style. Measured
 --   attributes return the type as if it where unmeasured.
-attributeType :: Attribute v n -> TypeRep
+attributeType :: Attribute v -> TypeRep
 attributeType (IAttribute a) = typeOf a
 attributeType (MAttribute a) = mType a
 attributeType (TAttribute a) = typeOf a
 {-# INLINE attributeType #-}
 
--- Note that we use typerep 'a' not 'Measured n a'
-mType :: forall n a. Typeable a => Measured n a -> TypeRep
+-- Note that we use typerep 'a' not 'Measured a'
+mType :: forall a. Typeable a => Measured a -> TypeRep
 mType _ = typeOf (undefined :: a)
 
 ------------------------------------------------------------------------
@@ -256,25 +256,25 @@ mType _ = typeOf (undefined :: a)
 
 -- | A @Style@ is a heterogeneous collection of attributes, containing
 --   at most one attribute of any given type.
-newtype Style v n = Style (HM.HashMap TypeRep (Attribute v n))
+newtype Style v = Style (HM.HashMap TypeRep (Attribute v))
 
 -- instances -----------------------------------------------------------
 
-type instance V (Style v n) = v
-type instance N (Style v n) = n
+type instance V (Style v) = v
+type instance N (Style v) = Double
 
-_Style :: Iso' (Style v n) (HM.HashMap TypeRep (Attribute v n))
+_Style :: Iso' (Style v) (HM.HashMap TypeRep (Attribute v))
 _Style = coerced
 {-# INLINE _Style #-}
 
 -- | Combine a style by combining the attributes; if the two styles have
 --   attributes of the same type they are combined according to their
 --   semigroup structure.
-instance Semigroup (Style v n) where
+instance Semigroup (Style v) where
   Style s1 <> Style s2 = Style $ HM.unionWith combineAttr s1 s2 where
 
     -- type signature needed for some reason
-    combineAttr :: Attribute v n -> Attribute v n -> Attribute v n
+    combineAttr :: Attribute v -> Attribute v -> Attribute v
     combineAttr (IAttribute a1) (IAttribute a2') | Just a2 <- cast a2'  = IAttribute (a1 <> a2)
     combineAttr (MAttribute a1) (MAttribute a2') | Just a2 <- castM a2' = MAttribute (a1 <> a2)
     combineAttr (TAttribute a1) (TAttribute a2') | Just a2 <- cast a2'  = TAttribute (a1 <> a2)
@@ -283,40 +283,40 @@ instance Semigroup (Style v n) where
 
 -- A cast for the measured attribute so we don't need a (Typeable n)
 -- constraint.
-castM :: forall n a b. (Typeable a, Typeable b) => Measured n a -> Maybe (Measured n b)
+castM :: forall a b. (Typeable a, Typeable b) => Measured a -> Maybe (Measured b)
 castM m =
   case eqT :: Maybe (a :~: b) of
     Just Refl -> Just m
     Nothing   -> Nothing
 
 -- | The empty style contains no attributes.
-instance Monoid (Style v n) where
+instance Monoid (Style v) where
   mempty  = Style HM.empty
   mappend = (<>)
 
 -- | Transform all 'TAttr's, scale all 'MAttr's.
-instance (Additive v, Traversable v, Floating n) => Transformable (Style v n) where
+instance (Additive v, Traversable v) => Transformable (Style v) where
   transform t = _Style . mapped %~ transform t
 
--- | Styles have no action on other monoids.
-instance A.Action (Style v n) m
+-- | Styles have action on other monoids.
+instance A.Action (Style v) m
 
 -- | Show the type of the attributes in the style.
-instance Show (Style v n) where
+instance Show (Style v) where
   showsPrec d sty = showParen (d > 10) $
     showString "Style " . showsPrec d (sty ^.. _Style . folded)
 
 -- making styles -------------------------------------------------------
 
-attributeToStyle :: Attribute v n -> Style v n
+attributeToStyle :: Attribute v -> Style v
 attributeToStyle a = Style $ HM.singleton (attributeType a) a
 
 -- | Create a style with a single attribute.
 --
 -- @
--- 'attrToStyle' 'Diagrams.Attributes._Opacity' '0.5' :: 'Style' v n
+-- 'attrToStyle' 'Diagrams.Attributes._Opacity' '0.5' :: 'Style' v
 -- @
-attrToStyle :: AttributeSpace a v n => AReview a r -> Rep a n r -> Style v n
+attrToStyle :: AttributeSpace a v => AReview a r -> Rep a r -> Style v
 attrToStyle l r = attributeToStyle (mkAttr (review l) r)
 
 -- style lenses --------------------------------------------------------
@@ -325,9 +325,9 @@ attrToStyle l r = attributeToStyle (mkAttr (review l) r)
 --   and the one you use, make a lens on it.
 --
 -- @
--- 'atAttr' :: 'AttrType` a ~ 'IAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v n) ('Maybe' r)
--- 'atAttr' :: 'AttrType` a ~ 'MAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v n) ('Maybe' ('Measured' n r))
--- 'atAttr' :: 'AttrType` a ~ 'TAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v n) ('Maybe' r)
+-- 'atAttr' :: 'AttrType` a ~ 'IAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v) ('Maybe' r)
+-- 'atAttr' :: 'AttrType` a ~ 'MAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v) ('Maybe' ('Measured' r))
+-- 'atAttr' :: 'AttrType` a ~ 'TAttr' => 'AnIso'' a r -> 'Lens'' ('Style' v) ('Maybe' r)
 -- @
 --
 --   There shouldn't be any need to use this for any of the standard
@@ -336,7 +336,7 @@ attrToStyle l r = attributeToStyle (mkAttr (review l) r)
 -- @
 -- 'Diagrams.Attributes._lineWidth = 'atAttr' '_LineWidth'
 -- @
-atAttr :: AttributeSpace a v n => AnIso' a r -> Lens' (Style v n) (Maybe (Rep a n r))
+atAttr :: AttributeSpace a v => AnIso' a r -> Lens' (Style v) (Maybe (Rep a r))
 atAttr l f sty =
   f (sty ^? _Style . ix ty . attribute l) <&>
     \r' -> sty & _Style . at ty .~ fmap (attribute l #) r'
@@ -371,7 +371,7 @@ _Backup = coerced
 -- | Similar to 'atAttr' but for backup attributes. These are attributes
 --   that are only used if the attribute is not otherwise set (before or
 --   after setting an backup attr).
-backupAttr :: AttributeSpace a v n => AnIso' a r -> Lens' (Style v n) (Maybe (Rep a n r))
+backupAttr :: AttributeSpace a v => AnIso' a r -> Lens' (Style v) (Maybe (Rep a r))
 backupAttr l = case singFor l of
   I -> atAttr (_Backup . l)
   M -> atAttr (_Backup . l)
@@ -403,7 +403,7 @@ _Priority = coerced
 
 -- | Similar to 'atAttr' but for priority attributes. These override
 --   existing attributes.
-priorityAttr :: AttributeSpace a v n => AnIso' a r -> Lens' (Style v n) (Maybe (Rep a n r))
+priorityAttr :: AttributeSpace a v => AnIso' a r -> Lens' (Style v) (Maybe (Rep a r))
 priorityAttr l = case singFor l of
   I -> atAttr (_Priority . l)
   M -> atAttr (_Priority . l)
@@ -416,9 +416,9 @@ priorityAttr l = case singFor l of
 class ApplyStyle a where
   -- | /Apply/ a style by combining it (on the left) with the existing
   --   style.
-  applyStyle :: Style (V a) (N a) -> a -> a
+  applyStyle :: Style (V a) -> a -> a
 
-instance ApplyStyle (Style v n) where
+instance ApplyStyle (Style v) where
   applyStyle = mappend
 
 instance (ApplyStyle a, ApplyStyle b, V a ~ V b, N a ~ N b) => ApplyStyle (a,b) where
@@ -436,23 +436,22 @@ instance ApplyStyle a => ApplyStyle (M.Map k a) where
 instance (ApplyStyle a, Ord a) => ApplyStyle (S.Set a) where
   applyStyle = S.map . applyStyle
 
-instance ApplyStyle b => ApplyStyle (Measured n b) where
+instance ApplyStyle b => ApplyStyle (Measured b) where
   applyStyle = fmap . applyStyle
 
 -- | Apply an attribute to an instance of 'ApplyStyle' (such as a
 --   diagram or a style). If the object already has an attribute of
 --   the same type, the new attribute is combined on the left with the
 --   existing attribute, according to their semigroup structure.
-applyAttr :: (AttributeSpace a (V d) (N d), ApplyStyle d)
-          => AReview a r -> Rep a (N d) r -> d -> d
+applyAttr :: (AttributeSpace a (V d), ApplyStyle d)
+          => AReview a r -> Rep a  r -> d -> d
 applyAttr l = applyStyle . attrToStyle l
 {-# INLINE applyAttr #-}
 
 -- | Apply a backup attribute. These get used only if no other
 --   attributes are set.
 applyBackupAttr
-  :: (AttributeSpace a (V d) (N d), ApplyStyle d)
-  => AReview a r -> Rep a (N d) r -> d -> d
+  :: (AttributeSpace a (V d), ApplyStyle d) => AReview a r -> Rep a r -> d -> d
 applyBackupAttr l = case singFor l of
   I -> applyAttr (_Backup . l)
   M -> applyAttr (_Backup . l)
@@ -462,8 +461,8 @@ applyBackupAttr l = case singFor l of
 -- | Apply a priority attribute. These override standard and backup
 --   attributes if present.
 applyPriorityAttr
-  :: (AttributeSpace a (V d) (N d), ApplyStyle d)
-  => AReview a r -> Rep a (N d) r -> d -> d
+  :: (AttributeSpace a (V d), ApplyStyle d)
+  => AReview a r -> Rep a r -> d -> d
 applyPriorityAttr l = case singFor l of
   I -> applyAttr (_Priority . l)
   M -> applyAttr (_Priority . l)
@@ -472,9 +471,9 @@ applyPriorityAttr l = case singFor l of
 
 -- | Class of things with a single style.
 class ApplyStyle a => HasStyle a where
-  style :: Lens' a (Style (V a) (N a))
+  style :: Lens' a (Style (V a))
 
-instance HasStyle (Style v n) where
+instance HasStyle (Style v) where
   style = id
   {-# INLINE style #-}
 
@@ -482,7 +481,7 @@ instance HasStyle (Style v n) where
 
 -- | Turn an 'MAttribute' into an 'Attribute' using the given 'global'
 --   and 'normalized' scale.
-readyAttribute :: Num n => n -> n -> Attribute v n -> Dynamic
+readyAttribute :: Double -> Double -> Attribute v -> Dynamic
 readyAttribute _ _ (IAttribute a) = toDyn a
 readyAttribute g n (MAttribute a) = toDyn (fromMeasured g n a)
 readyAttribute _ _ (TAttribute a) = toDyn a
@@ -504,7 +503,7 @@ instance Each Attributes Attributes Dynamic Dynamic where
 
 -- | Extract the 'Attribute's from a style using the given 'global' and
 --   'normalized' scale.
-getAttributes :: Num n => n -> n -> Style v n -> Attributes
+getAttributes :: Double -> Double -> Style v -> Attributes
 getAttributes g n (Style hm) = RAs (HM.map (readyAttribute g n) hm)
 {-# INLINE getAttributes #-}
 

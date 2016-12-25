@@ -79,7 +79,7 @@ instance Semigroup FillRule where
 instance Default FillRule where
   def = Winding
 
-runFillRule :: RealFloat n => FillRule -> Path V2 n -> Point V2 n -> Bool
+runFillRule :: FillRule -> Path V2 Double -> Point V2 Double -> Bool
 runFillRule Winding = isInsideWinding
 runFillRule EvenOdd = isInsideEvenOdd
 
@@ -94,7 +94,7 @@ fillRule :: ApplyStyle a => FillRule -> a -> a
 fillRule = applyAttr _FillRule
 
 -- | Lens onto the fill rule of a style.
-_fillRule :: Lens' (Style V2 n) (Maybe FillRule)
+_fillRule :: Lens' (Style V2) (Maybe FillRule)
 _fillRule = atAttr _FillRule
 
 -- | A record of options that control how a path is stroked.
@@ -145,8 +145,8 @@ instance Default (StrokeOpts a) where
 -- 'stroke' :: 'Located' ('Trail'' 'Loop' 'V2' 'Double') -> 'Diagram' 'V2'
 -- 'stroke' :: 'Located' ('Trail'' 'Line' 'V2' 'Double') -> 'Diagram' 'V2'
 -- @
-stroke :: (InSpace V2 n t, ToPath t, TypeableFloat n)
-       => t -> QDiagram V2 n Any
+stroke :: (InSpace V2 Double t, ToPath t)
+       => t -> Diagram V2
 stroke = strokeP . toPath
 
 -- | A variant of 'stroke' that takes an extra record of options to
@@ -156,22 +156,20 @@ stroke = strokeP . toPath
 --
 --   'StrokeOpts' is an instance of 'Default', so @stroke' ('with' &
 --   ... )@ syntax may be used.
-stroke' :: (InSpace V2 n t, ToPath t, TypeableFloat n, IsName a)
-       => StrokeOpts a -> t -> QDiagram V2 n Any
+stroke' :: (InSpace V2 Double t, ToPath t, IsName a)
+       => StrokeOpts a -> t -> Diagram V2
 stroke' opts = strokeP' opts . toPath
 
 -- | 'stroke' specialised to 'Path'.
-strokeP :: TypeableFloat n
-        => Path V2 n -> QDiagram V2 n Any
+strokeP :: Path V2 Double -> Diagram V2
 strokeP = strokeP' (def :: StrokeOpts ())
 
 -- | 'stroke' specialised to 'Path'.
-strokePath :: TypeableFloat n => Path V2 n -> QDiagram V2 n Any
+strokePath :: Path V2 Double -> Diagram V2
 strokePath = strokeP
 
 -- | 'stroke'' specialised to 'Path'.
-strokeP' :: (TypeableFloat n, IsName a)
-    => StrokeOpts a -> Path V2 n -> QDiagram V2 n Any
+strokeP' :: IsName a => StrokeOpts a -> Path V2 Double -> Diagram V2
 strokeP' opts path
   | null (pLines ^. _Wrapped') = mkP pLoops
   | null (pLoops ^. _Wrapped') = mkP pLines
@@ -188,56 +186,53 @@ strokeP' opts path
          (Query $ Any . (runFillRule (opts^.queryFillRule)) p)
 
 -- | 'stroke'' specialised to 'Path'.
-strokePath' :: (TypeableFloat n, IsName a)
-    => StrokeOpts a -> Path V2 n -> QDiagram V2 n Any
+strokePath' :: IsName a => StrokeOpts a -> Path V2 Double -> Diagram V2
 strokePath' = strokeP'
 
 -- | 'stroke' specialised to 'Trail'.
-strokeTrail :: TypeableFloat n => Trail V2 n -> QDiagram V2 n Any
+strokeTrail :: Trail V2 Double -> Diagram V2
 strokeTrail = stroke . pathFromTrail
 
 -- | 'stroke' specialised to 'Trail'.
-strokeT :: TypeableFloat n => Trail V2 n -> QDiagram V2 n Any
+strokeT :: Trail V2 Double -> Diagram V2
 strokeT = strokeTrail
 
 -- | A composition of 'stroke'' and 'pathFromTrail' for conveniently
 --   converting a trail directly into a diagram.
-strokeTrail' :: (TypeableFloat n, IsName a)
-             => StrokeOpts a -> Trail V2 n -> QDiagram V2 n Any
+strokeTrail' :: (IsName a) => StrokeOpts a -> Trail V2 Double -> Diagram V2
 strokeTrail' opts = stroke' opts . pathFromTrail
 
 -- | Deprecated synonym for 'strokeTrail''.
-strokeT' :: (TypeableFloat n, IsName a)
-         => StrokeOpts a -> Trail V2 n -> QDiagram V2 n Any
+strokeT' :: IsName a => StrokeOpts a -> Trail V2 Double -> Diagram V2
 strokeT' = strokeTrail'
 
 -- | A composition of 'strokeT' and 'wrapLine' for conveniently
 --   converting a line directly into a diagram.
-strokeLine :: TypeableFloat n => Trail' Line V2 n -> QDiagram V2 n Any
+strokeLine :: Trail' Line V2 Double -> Diagram V2
 strokeLine = strokeT . wrapLine
 
 -- | A composition of 'strokeT' and 'wrapLoop' for conveniently
 --   converting a loop directly into a diagram.
-strokeLoop :: TypeableFloat n => Trail' Loop V2 n -> QDiagram V2 n Any
+strokeLoop :: Trail' Loop V2 Double -> Diagram V2
 strokeLoop = strokeT . wrapLoop
 
 -- | A convenience function for converting a @Located Trail@ directly
 --   into a diagram; @strokeLocTrail = stroke . trailLike@.
-strokeLocTrail :: TypeableFloat n => Located (Trail V2 n) -> QDiagram V2 n Any
+strokeLocTrail :: Located (Trail V2 Double) -> Diagram V2
 strokeLocTrail = strokeP . trailLike
 
 -- | Deprecated synonym for 'strokeLocTrail'.
-strokeLocT :: TypeableFloat n => Located (Trail V2 n) -> QDiagram V2 n Any
+strokeLocT :: Located (Trail V2 Double) -> Diagram V2
 strokeLocT = strokeLocTrail
 
 -- | A convenience function for converting a @Located@ line directly
 --   into a diagram; @strokeLocLine = stroke . trailLike . mapLoc wrapLine@.
-strokeLocLine :: TypeableFloat n => Located (Trail' Line V2 n) -> QDiagram V2 n Any
+strokeLocLine :: Located (Trail' Line V2 Double) -> Diagram V2
 strokeLocLine = strokeP . trailLike . mapLoc wrapLine
 
 -- | A convenience function for converting a @Located@ loop directly
 --   into a diagram; @strokeLocLoop = stroke . trailLike . mapLoc wrapLoop@.
-strokeLocLoop :: TypeableFloat n => Located (Trail' Loop V2 n) -> QDiagram V2 n Any
+strokeLocLoop :: Located (Trail' Loop V2 Double) -> Diagram V2
 strokeLocLoop = strokeP . trailLike . mapLoc wrapLoop
 
 ------------------------------------------------------------------------
@@ -249,28 +244,28 @@ strokeLocLoop = strokeP . trailLike . mapLoc wrapLoop
 --   concatenation, so applying multiple clipping paths is sensible.
 --   The clipping region is the intersection of all the applied
 --   clipping paths.
-newtype Clip n = Clip [Path V2 n] -- use Sequence?
+newtype Clip = Clip [Path V2 Double] -- use Sequence?
   deriving (Typeable, Semigroup)
 
-instance Typeable n => AttributeClass (Clip n) where
-  type AttrType (Clip n) = 'TAttr
+instance AttributeClass Clip where
+  type AttrType Clip = 'TAttr
 
-instance AsEmpty (Clip n) where
+instance AsEmpty Clip where
   _Empty = _Clip . _Empty
 
-type instance V (Clip n) = V2
-type instance N (Clip n) = n
+type instance V Clip = V2
+type instance N Clip = Double
 
-instance (OrderedField n) => Transformable (Clip n) where
+instance Transformable Clip where
   transform t (Clip ps) = Clip (transform t ps)
 
 -- | A point inside a clip if the point is in 'All' invididual clipping
 --   paths.
-instance RealFloat n => HasQuery (Clip n) All where
+instance HasQuery Clip All where
   getQuery (Clip paths) = Query $ \p ->
     F.foldMap (All . flip isInsideWinding p) paths
 
-_Clip :: Iso (Clip n) (Clip n') [Path V2 n] [Path V2 n']
+_Clip :: Iso' Clip [Path V2 Double]
 _Clip = coerced
 
 -- | Lens onto the Clip in a style. An empty list means no clipping.
@@ -278,8 +273,8 @@ _Clip = coerced
 -- @
 -- '_clip' :: 'Lens'' ('Style' 'V2' 'Double') ['Path' 'V2' 'Double']
 -- @
-_clip :: (InSpace V2 n a, HasStyle a, Typeable n, OrderedField n)
-      => Lens' a (Maybe [Path V2 n])
+_clip :: (InSpace V2 Double a, HasStyle a)
+      => Lens' a (Maybe [Path V2 Double])
 _clip = style . atAttr _Clip
 
 -- | Clip a diagram by the given path:
@@ -288,7 +283,7 @@ _clip = style . atAttr _Clip
 --     path will be drawn.
 --
 --   * The envelope of the diagram is unaffected.
-clipBy :: (InSpace V2 n a, ApplyStyle a, TypeableFloat n) => Path V2 n -> a -> a
+clipBy :: (InSpace V2 Double a, ApplyStyle a) => Path V2 Double -> a -> a
 clipBy = applyAttr _Clip . (:[])
 
 -- | Clip a diagram to the given path setting its envelope to the
@@ -296,8 +291,7 @@ clipBy = applyAttr _Clip . (:[])
 --   trace consists of those parts of the original diagram's trace
 --   which fall within the clipping path, or parts of the path's trace
 --   within the original diagram.
-clipTo :: TypeableFloat n
-  => Path V2 n -> QDiagram V2 n Any -> QDiagram V2 n Any
+clipTo :: Path V2 Double -> Diagram V2 -> Diagram V2
 clipTo = clipped -- p d = setTrace intersectionTrace . toEnvelope $ clipBy p d
   -- where
   --   envP = appEnvelope . getEnvelope $ p
@@ -317,8 +311,7 @@ clipTo = clipped -- p d = setTrace intersectionTrace . toEnvelope $ clipBy p d
 
 -- | Clip a diagram to the clip path taking the envelope and trace of the clip
 --   path.
-clipped :: TypeableFloat n
-  => Path V2 n -> QDiagram V2 n Any -> QDiagram V2 n Any
+clipped :: Path V2 Double -> Diagram V2 -> Diagram V2
 clipped p = clipBy p
 -- clipped p = withTrace p . withEnvelope p . clipBy p
 

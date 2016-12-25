@@ -44,7 +44,7 @@ import           Diagrams.Animation.Active ()
 --   time-varying diagram with start and end times) that can be
 --   rendered by backspace @b@, with vector space @v@ and monoidal
 --   annotations of type @m@.
-type QAnimation v n m = Active (QDiagram v n m)
+type QAnimation v m = Active (QDiagram v m)
 
 -- | A value of type @Animation b v@ is an animation (a time-varying
 --   diagram with start and end times) in vector space @v@ that can be
@@ -86,8 +86,8 @@ type Animation v = Active (Diagram v)
 --   See also 'animRect' for help constructing a background to go
 --   behind an animation.
 animEnvelope
-  :: (OrderedField n, HasLinearMap v)
-  => QAnimation v n m -> QAnimation v n m
+  :: HasLinearMap v
+  => QAnimation v m -> QAnimation v m
 animEnvelope = animEnvelope' 30
 
 -- | Like 'animEnvelope', but with an adjustible sample rate. The first
@@ -95,8 +95,8 @@ animEnvelope = animEnvelope' 30
 --   rates will be faster but less accurate; higher rates are more
 --   accurate but slower.
 animEnvelope'
-  :: (OrderedField n, HasLinearMap v)
-  => Rational -> QAnimation v n m -> QAnimation v n m
+  :: HasLinearMap v
+  => Rational -> QAnimation v m -> QAnimation v m
 -- animEnvelope' r a = withEnvelope (simulate r a) <$> a
 animEnvelope' r a = modEnvelope (const . getEnvelope $ simulate r a) <$> a
 
@@ -108,8 +108,8 @@ animEnvelope' r a = modEnvelope (const . getEnvelope $ simulate r a) <$> a
 --   Uses 30 samples per time unit by default; to adjust this number
 --   see 'animRect''.
 animRect
-  :: (InSpace V2 n t, TrailLike t)
-  => QAnimation V2 n m -> t
+  :: (InSpace V2 Double t, TrailLike t)
+  => QAnimation V2 m -> t
 animRect = trailLike . animRect' 30
 
 -- | Like 'animRect', but with an adjustible sample rate.  The first
@@ -117,8 +117,8 @@ animRect = trailLike . animRect' 30
 --   rates will be faster but less accurate; higher rates are more
 --   accurate but slower.
 animRect'
-  :: (InSpace V2 n t, TrailLike t)
-  => Rational -> QAnimation V2 n m -> t
+  :: (InSpace V2 Double t, TrailLike t)
+  => Rational -> QAnimation V2 m -> t
 animRect' r anim =
   case boxTransform (boundingBox results) (fromCorners (-0.5) 0.5) of
     Just t  -> trailLike $ transform t (rect 1 1)

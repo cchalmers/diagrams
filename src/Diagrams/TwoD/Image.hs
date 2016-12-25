@@ -86,18 +86,18 @@ data ImageData :: * -> * where
 --   Will typically be created by @loadImageEmb@ or @loadImageExt@
 --   which, will handle setting the width and height to the actual width
 --   and height of the image.
-data DImage :: * -> * -> * where
-  DImage :: !Int -> !Int -> ImageData t -> DImage n t
+data DImage :: * -> * where
+  DImage :: !Int -> !Int -> ImageData t -> DImage t
   deriving Typeable
 
-type instance V (DImage n a) = V2
-type instance N (DImage n a) = n
+type instance V (DImage a) = V2
+type instance N (DImage a) = Double
 
-instance OrderedField n => HasQuery (DImage n a) Any where
+instance HasQuery (DImage a) Any where
   getQuery = getQuery . boundingBox
   {-# INLINE getQuery #-}
 
-instance OrderedField n => Enveloped (DImage n a) where
+instance Enveloped (DImage a) where
   getEnvelope = getEnvelope . boundingBox
   {-# INLINE getEnvelope #-}
 
@@ -106,12 +106,12 @@ instance OrderedField n => Enveloped (DImage n a) where
       w' = fromIntegral w / 2; h' = fromIntegral h / 2
   {-# INLINE boundingBox #-}
 
-instance RealFloat n => Traced (DImage n a) where
+instance Traced (DImage a) where
   getTrace = getTrace . boundingBox
   {-# INLINE getTrace #-}
 
 -- | Make a 'DImage' into a 'Diagram'.
-image :: (TypeableFloat n, Typeable a) => DImage n a -> QDiagram V2 n Any
+image :: Typeable a => DImage a -> Diagram V2
 image = primQD
 
 -- Embedded images -----------------------------------------------------
@@ -123,11 +123,10 @@ data Embedded deriving Typeable
 
 -- | Crate a diagram from raw raster data.
 rasterDia
-  :: TypeableFloat n
-  => Int -- ^ width
+  :: Int -- ^ width
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
-  -> QDiagram V2 n Any
+  -> Diagram V2
 rasterDia w h f = image $ raster w h f
 
 -- | Create an image "from scratch" by specifying the pixel data.
@@ -135,7 +134,7 @@ raster
   :: Int -- ^ width
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
-  -> DImage n Embedded
+  -> DImage Embedded
 raster w h f = DImage w h (ImageRaster (ImageRGBA8 img))
   where
     img = generateImage f' w h
@@ -147,19 +146,19 @@ raster w h f = DImage w h (ImageRaster (ImageRGBA8 img))
       int x = round (255 * x)
 
 -- | Create an embedded image from a 'DynamicImage'.
-embedded :: DynamicImage -> DImage n Embedded
+embedded :: DynamicImage -> DImage Embedded
 embedded img = DImage w h (ImageRaster img)
   where
     w = dynamicMap imageWidth img
     h = dynamicMap imageHeight img
 
 -- | Create an embedded image from a 'DynamicImage'.
-embeddedDia :: TypeableFloat n => DynamicImage -> QDiagram V2 n Any
+embeddedDia :: DynamicImage -> Diagram V2
 embeddedDia = image . embedded
 
 -- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
 --   The width and height of the image are set to their actual values.
-loadImageEmb :: FilePath -> IO (Either String (DImage n Embedded))
+loadImageEmb :: FilePath -> IO (Either String (DImage Embedded))
 loadImageEmb path = do
   dImg <- readImage path
   return $ case dImg of
@@ -178,7 +177,7 @@ data External deriving Typeable
 -- | Check that a file exists, and use JuicyPixels to figure out
 --   the right size, but save a reference to the image instead
 --   of the raster data
-loadImageExt :: FilePath -> IO (Either String (DImage n External))
+loadImageExt :: FilePath -> IO (Either String (DImage External))
 loadImageExt path = do
   dImg <- readImage path
   return $ case dImg of
@@ -191,18 +190,18 @@ loadImageExt path = do
 -- | Make an "unchecked" image reference; have to specify a
 --   width and height. Unless the aspect ratio of the external
 --   image is the w :: h, then the image will be distorted.
-uncheckedImageRef :: Int -> Int -> FilePath -> DImage n External
+uncheckedImageRef :: Int -> Int -> FilePath -> DImage External
 uncheckedImageRef w h path = DImage w h (ImageRef path)
 
 -- | Convert an external image to an embedded one.
-externalToEmbedded :: DImage n External -> IO (Either String (DImage n Embedded))
+externalToEmbedded :: DImage External -> IO (Either String (DImage Embedded))
 externalToEmbedded (DImage _ _ (ImageRef path)) = loadImageEmb path
 
 -- | Convert an embedded image to an external one, saving the image to
 --   the path. This can be useful for backends that don't support
 --   embedded images. The type of image used depends on the extension of
 --   the output file.
-embeddedToExternal :: FilePath -> DImage n Embedded -> IO (Either String (DImage n External))
+embeddedToExternal :: FilePath -> DImage Embedded -> IO (Either String (DImage External))
 embeddedToExternal path (DImage w h (ImageRaster dyn)) =
   case map toLower $ takeExtension path of
     ".png" -> writeDynamicPng path dyn >> exImg

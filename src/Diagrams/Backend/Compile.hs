@@ -55,7 +55,6 @@ import           Diagrams.Types.Tree (foldDUAL)
 import Diagrams.TwoD.Image (DImage(..), ImageData(..), Embedded, External)
 import Diagrams.ThreeD.Light (PointLight (..))
 import Diagrams.TwoD.Text (Text)
-import Linear (Additive, V2)
 
 -- Typeable1 is a depreciated synonym in ghc > 707
 #if __GLASGOW_HASKELL__ >= 707
@@ -63,12 +62,12 @@ import Linear (Additive, V2)
 #endif
 
 foldDiaWithScales
-  :: (HasLinearMap v, OrderedField n, M.Monoid r)
-  => (Transformation v n -> Attributes -> Prim v n -> r)
-  -> (Annotation v n -> r -> r)
-  -> n -- 'global' to 'output' scale factor
-  -> n -- 'normalised' to 'output' scale factor
-  -> QDiagram v n m -- ^ diagram to fold
+  :: (HasLinearMap v, M.Monoid r)
+  => (Transformation v Double -> Attributes -> Prim -> r)
+  -> (Annotation v -> r -> r)
+  -> Double -- 'global' to 'output' scale factor
+  -> Double -- 'normalised' to 'output' scale factor
+  -> QDiagram v m -- ^ diagram to fold
   -> r
 foldDiaWithScales primF aF g n (QD dual) = foldDUAL lF aF dual
   where
@@ -83,11 +82,11 @@ foldDiaWithScales primF aF g n (QD dual) = foldDUAL lF aF dual
 
 -- | Simple way to fold a diagram into a monoidal result.
 foldDia
-  :: (HasLinearMap v, OrderedField n, Monoid r)
-  => (Transformation v n -> Attributes -> Prim v n -> r) -- ^ Fold a prim
-  -> (Annotation v n -> r -> r)   -- ^ Apply an annotation
-  -> Transformation v n           -- ^ final transform for diagram
-  -> QDiagram v n m               -- ^ diagram to fold
+  :: (HasLinearMap v, Monoid r)
+  => (Transformation v Double -> Attributes -> Prim -> r) -- ^ Fold a prim
+  -> (Annotation v -> r -> r)   -- ^ Apply an annotation
+  -> Transformation v Double    -- ^ final transform for diagram
+  -> QDiagram v m               -- ^ diagram to fold
   -> r
 foldDia primF annF t d = foldDiaWithScales primF annF g n d
   where
@@ -98,23 +97,23 @@ foldDia primF annF t d = foldDiaWithScales primF annF g n d
 -- Standard prisms -----------------------------------------------------
 
 -- | Prism onto to a path.
-_Path :: (Typeable v, Additive v, Typeable n, Num n) => Prism' (Prim v n) (Path v n)
+_Path :: Typeable v => Prism' Prim (Path v Double)
 _Path = _Prim
 
 -- | Prism onto to an unboxed path
-_UPath :: (Typeable v, Additive v, Typeable n, Num n) => Prism' (Prim v n) (UPath v n)
+_UPath :: Typeable v => Prism' Prim (UPath v Double)
 _UPath = _Prim
 
 -- | Prism onto to a text.
-_Text :: (Typeable n, Num n) => Prism' (Prim V2 n) (Text n)
+_Text :: Prism' Prim Text
 _Text = _Prim
 
 -- | Prism onto to an embedded image.
-_ExternalImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n External)
+_ExternalImage :: Prism' Prim (DImage External)
 _ExternalImage = _Prim
 
 -- | Prism onto to an embedded image.
-_EmbeddedImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n Embedded)
+_EmbeddedImage :: Prism' Prim (DImage Embedded)
 _EmbeddedImage = _Prim
 
 ------------------------------------------------------------------------
@@ -124,53 +123,51 @@ _EmbeddedImage = _Prim
 -- Prisms --------------------------------------------------------------
 
 -- | Prism onto a cube prim.
-_Cube :: (Typeable n, Num n) => Prism' (Prim V3 n) (Cube n)
+_Cube :: Prism' Prim (Cube Double)
 _Cube = _Prim
 
 -- | Prism onto a cube prim.
-_Frustum :: (Typeable n, Num n) => Prism' (Prim V3 n) (Frustum n)
+_Frustum :: Prism' Prim (Frustum Double)
 _Frustum = _Prim
 
 -- | Prism onto a cube prim.
-_Sphere :: (Typeable n, Num n) => Prism' (Prim V3 n) (Sphere n)
+_Sphere :: Prism' Prim (Sphere Double)
 _Sphere = _Prim
 
-_PointLight :: (Typeable n, Num n) => Prism' (Prim V3 n) (PointLight n)
+_PointLight :: Prism' Prim PointLight
 _PointLight = _Prim
 
 -- Patterns ------------------------------------------------------------
 
-pattern Cube_ :: (Typeable n, Num n) => Prim V3 n
+pattern Cube_ :: Prim
 pattern Cube_ <- (is _Cube -> True) where
-  Cube_ = Prim Cube
+  Cube_ = Prim (Cube :: Cube Double)
 
-pattern Frustum_ :: (Typeable n, Num n) => n -> n -> Prim V3 n
+pattern Frustum_ :: Double -> Double -> Prim
 pattern Frustum_ a b <- (preview _Frustum -> Just (Frustum a b)) where
   Frustum_ a b = Prim (Frustum a b)
 
-pattern Sphere_ :: (Typeable n, Num n) => Prim V3 n
+pattern Sphere_ :: Prim
 pattern Sphere_ <- (is _Sphere -> True) where
-  Sphere_ = Prim Sphere
+  Sphere_ = Prim (Sphere :: Sphere Double)
 
-pattern PointLight_ :: (Typeable n, Num n) => P3 n -> Colour Double -> Prim V3 n
+pattern PointLight_ :: P3 Double -> Colour Double -> Prim
 pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
   PointLight_ p c = Prim (PointLight p c)
 
-pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
-              => Path v n -> Prim v n
+pattern Path_ :: Typeable v => Path v Double -> Prim
 pattern Path_ p <- (preview _Path -> Just p) where
   Path_ p = Prim p
 
-pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
-               => UPath v n -> Prim v n
+pattern UPath_ :: Typeable v => UPath v Double -> Prim
 pattern UPath_ p <- (preview _UPath -> Just p) where
   UPath_ p = Prim p
 
-pattern Text_ :: (Typeable n, Num n) => Text n -> Prim V2 n
+pattern Text_ :: Typeable n => Text -> Prim
 pattern Text_ p <- (preview _Text -> Just p) where
   Text_ p = Prim p
 
-pattern EmbeddedImage_ :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
+pattern EmbeddedImage_ :: DynamicImage -> Prim
 pattern EmbeddedImage_ dyn
   <- (preview _EmbeddedImage -> Just (DImage _ _ (ImageRaster dyn))) where
   EmbeddedImage_ img =
@@ -178,7 +175,7 @@ pattern EmbeddedImage_ dyn
         h = dynamicMap imageHeight img
     in  Prim (DImage w h (ImageRaster img))
 
-pattern ExternalImage_ :: (Typeable n, Num n) => Int -> Int -> FilePath -> Prim V2 n
+pattern ExternalImage_ :: Int -> Int -> FilePath -> Prim
 pattern ExternalImage_ w h path
   <- (preview _ExternalImage -> Just (DImage w h (ImageRef path))) where
   ExternalImage_ w h path = Prim (DImage w h (ImageRef path))

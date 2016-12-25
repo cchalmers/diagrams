@@ -80,20 +80,20 @@ import           Diagrams.Attributes
 --
 --   This constructor should not be used directly. Use 'text',
 --   'alignedText' or 'baselineText'.
-data Text n = Text (TextAlignment n) String
+data Text = Text TextAlignment String
   deriving Typeable
   -- XXX When rendering text you should only use a transform with
   -- an average scale of one
 
-type instance V (Text n) = V2
-type instance N (Text n) = n
+type instance V Text = V2
+type instance N Text = Double
 
 -- | @TextAlignment@ specifies the alignment of the text's origin.
-data TextAlignment n = BaselineText | BoxAlignedText n n
+data TextAlignment = BaselineText | BoxAlignedText Double Double
 
 -- | Make a text from a 'TextAlignment', recommending a fill colour of
 --   'black' and 'fontSize' of @'local' 1@.
-mkText :: TextAlignment Double -> String -> Diagram V2
+mkText :: TextAlignment -> String -> Diagram V2
 mkText a = applyStyle sty . mkText' a
   where
     sty = mempty & backupAttr _FontSize    ?~ local 1
@@ -102,7 +102,7 @@ mkText a = applyStyle sty . mkText' a
 -- | Make a text from a 'TextAlignment' without any default size or fill
 --   colour. This is useful is you want to recommend your own using
 --   'recommendFillColor' or 'recommendFontSize'.
-mkText' :: TypeableFloat n => TextAlignment n -> String -> QDiagram V2 n Any
+mkText' :: TextAlignment -> String -> Diagram V2
 mkText' a t = mkQD (Prim $ Text a t)
                    (pointEnvelope origin)
                    mempty
@@ -177,15 +177,15 @@ _font = style . atAttr _Font
 
 -- | The @FontSize@ attribute specifies the size of a font's
 --   em-square.  Inner @FontSize@ attributes override outer ones.
-newtype FontSize n = FontSize (Last n)
-  deriving (Typeable, Semigroup, Functor)
+newtype FontSize = FontSize (Last Double)
+  deriving (Typeable, Semigroup)
 
 -- | Isomorphism between a font size wrapper and the font size.
-_FontSize :: Iso' (FontSize n) n
+_FontSize :: Iso' FontSize Double
 _FontSize = coerced
 
-instance Typeable n => AttributeClass (FontSize n) where
-  type AttrType (FontSize n) = 'MAttr
+instance AttributeClass FontSize where
+  type AttrType FontSize = 'MAttr
 
 -- instance Num n => Default (FontSizeM n) where
 --   def = FontSize . Recommend . Last <$> local 1
@@ -197,23 +197,23 @@ instance Typeable n => AttributeClass (FontSize n) where
 --   Note that 'Measure' has a 'Num' instance which uses @'fromIntegral
 --   = 'output'@ so writing @'fontSize' 8@ is the same of @'fontSize'
 --   ('output' 8)@.
-fontSize :: (N a ~ n, Typeable n, ApplyStyle a) => Measure n -> a -> a
+fontSize :: ApplyStyle a => Measure -> a -> a
 fontSize = applyAttr _FontSize
 
 -- | A convenient synonym for 'fontSize (global w)'.
-fontSizeG :: (N a ~ n, Typeable n, Num n, ApplyStyle a) => n -> a -> a
+fontSizeG :: ApplyStyle a => Double -> a -> a
 fontSizeG = fontSize . global
 
 -- | A convenient synonym for 'fontSize (normalized w)'.
-fontSizeN :: (N a ~ n, Typeable n, Num n, ApplyStyle a) => n -> a -> a
+fontSizeN :: ApplyStyle a => Double -> a -> a
 fontSizeN = fontSize . normalized
 
 -- | A convenient synonym for @'fontSize' ('output' w)@.
-fontSizeO :: (N a ~ n, Typeable n, ApplyStyle a) => n -> a -> a
+fontSizeO :: ApplyStyle a => Double -> a -> a
 fontSizeO = fontSize . output
 
 -- | A convenient sysnonym for @'fontSize' ('local' w)@.
-fontSizeL :: (N a ~ n, Typeable n, Num n, ApplyStyle a) => n -> a -> a
+fontSizeL :: ApplyStyle a => Double -> a -> a
 fontSizeL = fontSize . local
 
 -- | Lens to commit a font size. This is *not* a valid lens (see
@@ -222,7 +222,7 @@ fontSizeL = fontSize . local
 -- @
 -- '_fontSize' :: 'Lens'' ('Style' 'V2' 'Double') ('Maybe' ('Measure' n))
 -- @
-_fontSize :: (InSpace v n a, HasStyle a, Typeable n) => Lens' a (Maybe (Measure n))
+_fontSize :: (InSpace v Double a, HasStyle a) => Lens' a (Maybe Measure)
 _fontSize = style . atAttr _FontSize
 
 -- Font slant ----------------------------------------------------------

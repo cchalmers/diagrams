@@ -38,7 +38,6 @@ module Diagrams.TwoD.Combinators
   ) where
 
 import           Control.Lens             ((&), (.~))
--- import           Data.Default.Class
 import           Data.Semigroup
 
 import Data.Monoid.WithSemigroup
@@ -46,36 +45,12 @@ import Data.Monoid.WithSemigroup
 import Geometry
 import Diagrams.Combinators
 import Linear.Vector
--- import           Geometry.Space
--- -- import           Geometry.Transform
-
--- -- import           Geometry.Attributes      (lwO)
--- -- import           Geometry.BoundingBox
--- import           Geometry.Combinators
--- -- import           Geometry.Path
--- -- import           Geometry.Segment
--- import Geometry.HasOrigin
--- -- import           Geometry.TrailLike
--- -- import           Geometry.TwoD.Align
--- import           Geometry.Juxtapose
--- -- import           Geometry.TwoD.Attributes (fc)
--- -- import           Geometry.TwoD.Path       ()
--- -- import           Geometry.TwoD.Shapes
--- -- import           Geometry.TwoD.Transform  (scaleX, scaleY)
--- import           Geometry.TwoD.Types
--- import           Geometry.TwoD.Vector
--- import           Geometry.Space
 import Diagrams.Types
 import Diagrams.Util
 import Diagrams.Attributes
 import Diagrams.TwoD.Attributes
 import Diagrams.TwoD.Path.Unboxed () -- orphan traillike diagram instance
--- import           Geometry.Util            (( # ))
-
--- import           Linear.Affine
--- import           Linear.Metric
 import Data.Colour
--- import           Linear.Vector
 
 -- | @strutR2 v@ is a two-dimensional diagram which produces no
 --   output, but with respect to alignment, envelope, /and trace/ acts
@@ -83,7 +58,7 @@ import Data.Colour
 --   local origin at its center.  If you don't care about the trace
 --   then there's no difference between @strutR2@ and the more general
 --   'strut'.
-strutR2 :: (RealFloat n, Monoid' m) => V2 n -> QDiagram V2 n m
+strutR2 :: Monoid' m => V2 Double -> QDiagram V2 m
 strutR2 v = phantom seg
   where
     seg = FLinear (origin .+^ 0.5 *^ v) (origin .+^ (-0.5) *^ v)
@@ -91,18 +66,14 @@ strutR2 v = phantom seg
 -- | @strutX w@ is an empty diagram with width @w@, height 0, and a
 --   centered local origin.  Note that @strutX (-w)@ behaves the same as
 --   @strutX w@.
-strutX
-  :: (HasLinearMap v, R1 v, OrderedField n, Monoid m)
-  => n -> QDiagram v n m
+strutX :: (HasLinearMap v, R1 v, Monoid m) => Double -> QDiagram v m
 strutX d = strut (zero & _x .~ d)
 {-# INLINE strutX #-}
 
 -- | @strutY h@ is an empty diagram with height @h@, width 0, and a
 --   centered local origin. Note that @strutY (-h)@ behaves the same as
 --   @strutY h@.
-strutY
-  :: (HasLinearMap v, R2 v, OrderedField n, Monoid m)
-  => n -> QDiagram v n m
+strutY :: (HasLinearMap v, R2 v, Monoid m) => Double -> QDiagram v m
 strutY d = strut (zero & _y .~ d)
 {-# INLINE strutY #-}
 
@@ -113,8 +84,7 @@ strutY d = strut (zero & _y .~ d)
 --   centered horizontally the padding may appear \"uneven\".  If this
 --   is not desired, the origin can be centered (using 'centerX')
 --   before applying @padX@.
-padX :: (HasLinearMap v, R1 v, OrderedField n, Monoid' m)
-     => n -> QDiagram v n m -> QDiagram v n m
+padX :: (HasLinearMap v, R1 v) => Double -> QDiagram v m -> QDiagram v m
 padX s d = withEnvelope (scaleX s $ getEnvelope d) d
 {-# INLINE padX #-}
 
@@ -125,8 +95,7 @@ padX s d = withEnvelope (scaleX s $ getEnvelope d) d
 --   centered vertically the padding may appear \"uneven\".  If this is
 --   not desired, the origin can be centered (using 'centerY') before
 --   applying @padY@.
-padY :: (HasLinearMap v, R2 v, Monoid' m, OrderedField n)
-     => n -> QDiagram v n m -> QDiagram v n m
+padY :: (HasLinearMap v, R2 v) => Double -> QDiagram v m -> QDiagram v m
 padY s d = withEnvelope (scaleY s $ getEnvelope d) d
 {-# INLINE padY #-}
 
@@ -136,10 +105,9 @@ padY s d = withEnvelope (scaleY s $ getEnvelope d) d
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeLeft
-  :: OrderedField n
-  => n
-  -> QDiagram V2 n m
-  -> QDiagram V2 n m
+  :: Double
+  -> QDiagram V2 m
+  -> QDiagram V2 m
 extrudeLeft s
   | s >= 0    = extrudeEnvelope $ unitX ^* negate s
   | otherwise = intrudeEnvelope $ unitX ^* negate s
@@ -151,10 +119,9 @@ extrudeLeft s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeRight
-  :: OrderedField n
-  => n
-  -> QDiagram V2 n m
-  -> QDiagram V2 n m
+  :: Double
+  -> QDiagram V2 m
+  -> QDiagram V2 m
 extrudeRight s
   | s >= 0    = extrudeEnvelope $ unitX ^* s
   | otherwise = intrudeEnvelope $ unitX ^* s
@@ -165,10 +132,9 @@ extrudeRight s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeBottom
-  :: OrderedField n
-  => n
-  -> QDiagram V2 n m
-  -> QDiagram V2 n m
+  :: Double
+  -> QDiagram V2 m
+  -> QDiagram V2 m
 extrudeBottom s
   | s >= 0    = extrudeEnvelope $ unitY ^* negate s
   | otherwise = intrudeEnvelope $ unitY ^* negate s
@@ -179,10 +145,9 @@ extrudeBottom s
 --
 --   See the documentation for 'extrudeEnvelope' for more information.
 extrudeTop
-  :: OrderedField n
-  => n
-  -> QDiagram V2 n m
-  -> QDiagram V2 n m
+  :: Double
+  -> QDiagram V2 m
+  -> QDiagram V2 m
 extrudeTop s
   | s >= 0    = extrudeEnvelope $ unitY ^* s
   | otherwise = intrudeEnvelope $ unitY ^* s
@@ -193,14 +158,13 @@ extrudeTop s
 --   diagram which should actually be \"viewed\" in the final render, if
 --   you don't want to see the entire diagram.
 rectEnvelope
-  :: forall n m. OrderedField n
-  => Point V2 n -> V2 n -> QDiagram V2 n m -> QDiagram V2 n m
-rectEnvelope p (V2 w h) = withEnvelope (rect w h # alignBL # moveTo p :: Path V2 n)
+  :: forall m. P2 Double -> V2 Double -> QDiagram V2 m -> QDiagram V2 m
+rectEnvelope p (V2 w h) = withEnvelope (rect w h # alignBL # moveTo p :: Path V2 Double)
 
 -- | Construct a bounding rectangle for an enveloped object, that is,
 --   the smallest axis-aligned rectangle which encloses the object.
 boundingRect
-  :: (InSpace V2 n a, SameSpace a t, Enveloped t, TrailLike t, Transformable t, Monoid t, Enveloped a)
+  :: (InSpace V2 Double a, SameSpace a t, Enveloped t, TrailLike t, Transformable t, Monoid t, Enveloped a)
   => a -> t
 boundingRect = (`boxFit` unitSquare) . boundingBox
 

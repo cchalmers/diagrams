@@ -64,7 +64,7 @@ import qualified Diagrams.TwoD.Path as P
 uStroke :: UPath V2 Double -> Diagram V2
 uStroke = fmap (Any . (/= 0)) . uStrokeQ
 
-uStrokeQ :: UPath V2 Double -> QDiagram V2 Double Crossings
+uStrokeQ :: UPath V2 Double -> QDiagram V2 Crossings
 uStrokeQ = primQD
 
 instance TrailLike (Diagram V2) where

@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -115,7 +114,7 @@ import Diagrams.Types
 
 none, ultraThin, veryThin, thin, medium, thick, veryThick, ultraThick,
   tiny, verySmall, small, normal, large, veryLarge, huge
-  :: OrderedField n => Measure n
+  :: Measure
 none       = output 0
 ultraThin  = normalized 0.0005 `atLeast` output 0.5
 veryThin   = normalized 0.001  `atLeast` output 0.5
@@ -139,41 +138,42 @@ huge      = normalized 0.10
 
 -- | Line widths specified on child nodes always override line widths
 --   specified at parent nodes. The 'Default' line width is 'medium'.
-newtype LineWidth n = LineWidth (Last n)
+newtype LineWidth = LineWidth (Last Double)
   deriving (Typeable, Semigroup)
 
-_LineWidth :: Iso' (LineWidth n) n
-_LineWidth = iso coerce coerce
+_LineWidth :: Iso' LineWidth Double
+_LineWidth = coerced
+{-# INLINE _LineWidth #-}
 
-instance Typeable n => AttributeClass (LineWidth n) where
-  type AttrType (LineWidth n) = 'MAttr
+instance AttributeClass LineWidth where
+  type AttrType LineWidth = 'MAttr
 
 -- | Set the line (stroke) width.
-lineWidth :: (N a ~ n, ApplyStyle a, Typeable n) => Measure n -> a -> a
+lineWidth :: ApplyStyle a => Measure -> a -> a
 lineWidth = applyAttr _LineWidth
 
 -- | Default for 'lineWidth'.
-lw :: (N a ~ n, ApplyStyle a, Typeable n) => Measure n -> a -> a
+lw :: ApplyStyle a => Measure -> a -> a
 lw = lineWidth
 
 -- | A convenient synonym for @'lineWidth' ('global' w)@.
-lwG :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
+lwG :: ApplyStyle a => Double -> a -> a
 lwG = lw . global
 
 -- | A convenient synonym for @'lineWidth' ('normalized' w)@.
-lwN :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
+lwN :: ApplyStyle a => Double -> a -> a
 lwN = lw . normalized
 
 -- | A convenient synonym for @'lineWidth' ('output' w)@.
-lwO :: (N a ~ n, ApplyStyle a, Typeable n) => n -> a -> a
+lwO :: ApplyStyle a => Double -> a -> a
 lwO = lw . output
 
 -- | A convenient sysnonym for @'lineWidth' ('local' w)@.
-lwL :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => n -> a -> a
+lwL :: ApplyStyle a => Double -> a -> a
 lwL = lw . local
 
 -- | Lens onto a measured line width in a style.
-_lineWidth, _lw :: (Typeable (N a), HasStyle a) => Lens' a (Maybe (Measure (N a)))
+_lineWidth, _lw :: HasStyle a => Lens' a (Maybe Measure)
 _lineWidth = style . atAttr _LineWidth
 _lw = _lineWidth
 
@@ -182,50 +182,49 @@ _lw = _lineWidth
 ------------------------------------------------------------------------
 
 -- | Create lines that are dashing... er, dashed.
-data Dashing n = Dashing [n] n
-  deriving (Functor, Typeable, Eq)
+data Dashing = Dashing [Double] !Double
+  deriving (Typeable, Eq)
 
 -- | 'Dashing' isomorphism.
-_Dashing :: Equality' (Dashing n) (Dashing n)
+_Dashing :: Equality' Dashing Dashing
 _Dashing = id
 
-instance Semigroup (Dashing n) where
+instance Semigroup Dashing where
   _ <> b = b
 
-instance Typeable n => AttributeClass (Dashing n) where
-  type AttrType (Dashing n) = 'MAttr
+instance AttributeClass Dashing where
+  type AttrType Dashing = 'MAttr
 
 -- | Set the line dashing style.
-dashing :: (N a ~ n, ApplyStyle a, Typeable n)
-        => [Measure n]  -- ^ A list specifying alternate lengths of on
-                        --   and off portions of the stroke.  The empty
-                        --   list indicates no dashing.
-        -> Measure n    -- ^ An offset into the dash pattern at which the
-                        --   stroke should start.
+dashing :: ApplyStyle a
+        => [Measure]  -- ^ A list specifying alternate lengths of on
+                      --   and off portions of the stroke.  The empty
+                      --   list indicates no dashing.
+        -> Measure    -- ^ An offset into the dash pattern at which the
+                      --   stroke should start.
         -> a -> a
-dashing ds offs = applyAttr _Dashing . distribute $ Dashing ds offs
+dashing ds offs = applyAttr _Dashing $ Dashing <$> distribute ds <*> offs
 
 -- | A convenient synonym for 'dashing (global w)'.
-dashingG :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => [n] -> n -> a -> a
+dashingG :: ApplyStyle a => [Double] -> Double -> a -> a
 dashingG w v = dashing (map global w) (global v)
 
 -- | A convenient synonym for 'dashing (normalized w)'.
-dashingN :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => [n] -> n -> a -> a
+dashingN :: ApplyStyle a => [Double] -> Double -> a -> a
 dashingN w v = dashing (map normalized w) (normalized v)
 
 -- | A convenient synonym for 'dashing (output w)'.
-dashingO :: (N a ~ n, ApplyStyle a, Typeable n) => [n] -> n -> a -> a
+dashingO :: ApplyStyle a => [Double] -> Double -> a -> a
 dashingO w v = dashing (map output w) (output v)
 
 -- | A convenient sysnonym for 'dashing (local w)'.
-dashingL :: (N a ~ n, ApplyStyle a, Typeable n, Num n) => [n] -> n -> a -> a
+dashingL :: ApplyStyle a => [Double] -> Double -> a -> a
 dashingL w v = dashing (map local w) (local v)
 
 -- | Lens onto a measured dashing attribute in a style. Note you can
 --   convert a @'Dashing' ('Measure' n)@ to @'Measured' n ('Dashing' n)@
 --   using 'distribute'.
-_dashing :: (n ~ N a, Typeable n)
-         => HasStyle a => Lens' a (Maybe (Measured n (Dashing n)))
+_dashing :: HasStyle a => Lens' a (Maybe (Measured Dashing))
 _dashing = style . atAttr _Dashing
 
 ------------------------------------------------------------------------
@@ -516,7 +515,7 @@ _HRef = coerced
 {-# INLINE _HRef #-}
 
 -- | Add a hyperlink reference to the diagram.
-href :: String -> Diagram v -> Diagram v
+href :: String -> QDiagram v m -> QDiagram v m
 href = applyAnnot _HRef
 {-# INLINE href #-}
 
