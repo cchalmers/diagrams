@@ -202,7 +202,7 @@ instance (Additive v, Traversable v, Floating n) => Transformable (Attribute v n
   transform t (MAttribute a) = MAttribute $ scaleLocal (avgScale t) a
   transform t (TAttribute a) = TAttribute $ transform t a
 
--- | Given a isomorphim between an attribute's internal representation
+-- | Given a isomorphism between an attribute's internal representation
 --   and the one you use, make a prism on it.
 --
 -- @
@@ -387,7 +387,7 @@ backupAttr l = case singFor l of
 
 -- Priority styles -----------------------------------------------------
 
--- | Internal wrapper for prioity attributes.
+-- | Internal wrapper for priority attributes.
 newtype Priority a = Priority a
   deriving (Typeable, Transformable, Semigroup)
 
@@ -402,17 +402,13 @@ _Priority = coerced
 {-# INLINE _Priority #-}
 
 -- | Similar to 'atAttr' but for priority attributes. These override
---   existing attributes
---
---   are only used if the attribute is not otherwise set (before or
---   after setting an priority attr).
+--   existing attributes.
 priorityAttr :: AttributeSpace a v n => AnIso' a r -> Lens' (Style v n) (Maybe (Rep a n r))
 priorityAttr l = case singFor l of
   I -> atAttr (_Priority . l)
   M -> atAttr (_Priority . l)
   T -> atAttr (_Priority . l)
 {-# INLINE priorityAttr #-}
-
 
 -- Applying styles -----------------------------------------------------
 
@@ -463,7 +459,7 @@ applyBackupAttr l = case singFor l of
   T -> applyAttr (_Backup . l)
 {-# INLINE applyBackupAttr #-}
 
--- | Apply a backup attribute. These override standard and backup
+-- | Apply a priority attribute. These override standard and backup
 --   attributes if present.
 applyPriorityAttr
   :: (AttributeSpace a (V d) (N d), ApplyStyle d)
@@ -513,7 +509,8 @@ getAttributes g n (Style hm) = RAs (HM.map (readyAttribute g n) hm)
 {-# INLINE getAttributes #-}
 
 -- | Extract a single attribute, ready to be rendered. This function
---   first looks looks
+--   first looks for a priority attribute, then a standard attribute and
+--   finally a backup attribute. If none of these exist, return 'Nothing'.
 getAttr :: Typeable a => Getting r a r -> Attributes -> Maybe r
 getAttr g (RAs hm) =
   case HM.lookup (getterRep (_Priority . g)) hm of

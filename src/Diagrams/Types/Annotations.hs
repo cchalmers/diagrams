@@ -1,17 +1,17 @@
 {-# LANGUAGE CPP                   #-}
-{-# LANGUAGE ConstraintKinds                   #-}
-{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE EmptyDataDecls        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
@@ -26,7 +26,8 @@
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
 --
--- There are three separate types of annotations: up, down and static.
+-- Definitions of annotations used on the diagrams tree. There are
+-- three separate types of annotations: up, down and static.
 --
 -----------------------------------------------------------------------------
 
@@ -57,31 +58,22 @@ module Diagrams.Types.Annotations
   , getAnnot
   ) where
 
-import           Control.Lens              hiding (transform) -- (Lens', Prism', Rewrapped,
-import           Data.Semigroup
-import           Data.Typeable
-
+import           Control.Lens          hiding (transform)
 import           Data.Monoid.Action
 import           Data.Monoid.Coproduct
--- import           Data.Monoid.Deletable
--- import           Data.Monoid.WithSemigroup
+import           Data.Semigroup
+import           Data.Typeable
+import           GHC.Exts
 
--- import           Geometry.Align
 import           Geometry.Envelope
--- import           Geometry.HasOrigin
--- import           Geometry.Juxtapose
--- import           Geometry.Points
 import           Geometry.Query
-import           Geometry.Trace
-import           Geometry.Transform hiding (T)
 import           Geometry.Space
+import           Geometry.Trace
+import           Geometry.Transform    hiding (T)
+import           Linear.Metric
 
 import           Diagrams.Types.Style
-import GHC.Exts
 
--- import           Linear.Affine
-import           Linear.Metric
--- import           Linear.Vector
 
 ------------------------------------------------------------------------
 -- Annotations
@@ -89,28 +81,16 @@ import           Linear.Metric
 
 -- Up annotations ------------------------------------------------------
 
--- | Monoidal annotations which travel up the diagram tree, /i.e./ which
---   are aggregated from component diagrams to the whole:
+-- | Monoidal annotations which can be viewed from the top of the
+--   diagram.
 --
---   * envelopes (see "Diagrams.Core.Envelope").
---     The envelopes are \"deletable\" meaning that at any point we can
---     throw away the existing envelope and replace it with a new one;
---     sometimes we want to consider a diagram as having a different
---     envelope unrelated to its \"natural\" envelope.
+--   * envelopes (see "Geometry.Envelope"), which can be modified with
+--     the 'UpMods'
 --
---   * traces (see "Diagrams.Core.Trace"), also
---     deletable.
+--   * traces (see "Geometry.Trace"), also modifiable
 --
---   * name/subdiagram associations (see "Diagrams.Core.Names")
---
---   * query functions (see "Diagrams.Core.Query")
-data UpAnnots v n m = UpAnnots
-  (Envelope v n)
-  (Trace v n)
-  (Query v n m)
--- Envelope and trace are 'Deleteable' so we can replace them. Just
--- replacing the top level up annotation isn't enough because we want to
--- be able to rebuild the up annotations when modifying a subdiagram.
+--   * query functions (see "Geometry.Query")
+data UpAnnots v n m = UpAnnots (Envelope v n) (Trace v n) (Query v n m)
 
 type instance V (UpAnnots v n m) = v
 type instance N (UpAnnots v n m) = n
@@ -146,16 +126,16 @@ instance (Ord n, Semigroup m, Monoid m) => Monoid (UpAnnots v n m) where
 -- note that lenses to envelope and trace for a diagram would not be
 -- lawful, namely the functor law:
 -- over l id == id
--- this is (setEnvelope . getEnvelope) would force the envelope to be
--- whatever the current envelope it. If later we modified a subdiagram,
--- the change in envelope would not pass this point.
+-- this is (setEnvelope . getEnvelope) and would force the envelope to
+-- be whatever the current envelope it. If later we modified a
+-- subdiagram, the change in envelope would not pass this point.
 
 -- | Lens onto the envelope of an up annotation.
 upEnvelope :: Lens' (UpAnnots v n m) (Envelope v n)
 upEnvelope f (UpAnnots e t q) = f e <&> \e' -> UpAnnots e' t q
 {-# INLINE upEnvelope #-}
 
--- | Lens onto the envelope of an up annotation.
+-- | Lens onto the trace of an up annotation.
 upTrace :: Lens' (UpAnnots v n m) (Trace v n)
 upTrace f (UpAnnots e t q) = f t <&> \t' -> UpAnnots e t' q
 {-# INLINE upTrace #-}
@@ -206,9 +186,7 @@ downStyle f d = f s <&> \s' -> inR s' <> inL t
 --     * 'TAttr' - transformable annotations
 data AnnotKind = IAnnot | TAnnot
 
--- | Every attribute must be an instance of @AttributeClass@  The
---   'Semigroup' instance for an attribute determines how it will combine
---   with other attributes of the same type.
+-- | Every annotation must be an instance of @AnnotationClass@.
 class Typeable a => AnnotationClass a where
   -- | The type of annotation. Choose between 'IAnnot' and 'TAnnot'.
   type AnnotType a :: AnnotKind

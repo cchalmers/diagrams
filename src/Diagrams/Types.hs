@@ -217,12 +217,6 @@ instance Wrapped (QDiagram v n m) where
   _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
--- getU
---   :: (HasLinearMap v, OrderedField n, Monoid' m)
---   => QDiagram v n m -> Maybe (UpAnnots v n m)
--- getU (QD t) = T.getU t
--- {-# INLINE getU #-}
-
 type instance V (QDiagram v n m) = v
 type instance N (QDiagram v n m) = n
 
