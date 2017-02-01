@@ -35,7 +35,7 @@ library
     Diagrams.TwoD.Image
     Diagrams.TwoD.Model
     Diagrams.TwoD.Path
-    Diagrams.TwoD.Path.Unboxed
+    -- Diagrams.TwoD.Path.Unboxed
     Diagrams.TwoD.Text
     Diagrams.ThreeD.Attributes
     Diagrams.ThreeD.Light
@@ -55,6 +55,7 @@ library
     transformers,
     constraints,
     active,
+    intervals,
     vector,
     linear >=1.20 && <1.21,
     geometry,

@@ -17,8 +17,8 @@
 --   * 'HasOrigin', 'Transformable', and 'HasStyle' instances for
 --     'Active' which all work pointwise.
 --
---   * A 'TrailLike' instance for @'Active' p@ where @p@ is also
---     'TrailLike', which simply lifts a pathlike thing to a constant
+--   * A 'FromTrail' instance for @'Active' p@ where @p@ is also
+--     'FromTrail', which simply lifts a pathlike thing to a constant
 --     active value.
 --
 --   * A 'Juxtaposable' instance for @'Active' a@ where @a@ is also
@@ -66,8 +66,8 @@ instance Transformable a => Transformable (Active a) where
 instance ApplyStyle a => ApplyStyle (Active a) where
   applyStyle = fmap . applyStyle
 
-instance TrailLike t => TrailLike (Active t) where
-  trailLike = pure . trailLike
+instance FromTrail t => FromTrail (Active t) where
+  fromLocTrail = pure . fromLocTrail
 
 -- | An active value can be juxtaposed against another by doing the
 --   juxtaposition pointwise over time.  The era of @juxtapose v a1

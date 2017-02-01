@@ -20,8 +20,8 @@ module Diagrams.TwoD.Model
   , OriginOpts(..), originSize -- , oMinSize
 
     -- * Showing an approximation of the envelope
-  , showEnvelope
-  , showEnvelope'
+  -- , showEnvelope
+  -- , showEnvelope'
   , EnvelopeOpts(..), envelopePoints, envelopeSmoothing
 
     -- * Showing an approximation of the trace
@@ -40,7 +40,7 @@ import           Data.Colour.Names
 import           Data.Default.Class
 import           Data.List                (intercalate)
 -- import qualified Data.Map                 as M
-import           Data.Maybe               (catMaybes)
+-- import           Data.Maybe               (catMaybes)
 import           Data.Semigroup
 import Geometry
 
@@ -51,7 +51,7 @@ import           Diagrams.Types
 -- import           Diagrams.TwoD.Path
 import           Diagrams.TwoD.Attributes
 import           Data.Monoid.WithSemigroup
-import           Diagrams.TwoD.Path.Unboxed
+import           Diagrams.TwoD.Path
 import           Diagrams.TwoD.Text
 -- import           Diagrams.TwoD.Transform  (rotateBy)
 -- import           Diagrams.TwoD.Types
@@ -95,7 +95,7 @@ showOrigin'
   => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
 showOrigin' (OriginOpts sty m) d = o <> d
   where
-    o = uStroke (circle sz)
+    o = strokePath (circle sz)
           # applyStyle sty
           # lw none
           # fmap (const mempty)
@@ -135,19 +135,19 @@ envelopeSmoothing f (EnvelopeOpts sty s n) =  f s <&> \s' -> EnvelopeOpts sty s'
 
 -- | Mark the envelope with an approximating cubic spline with control
 --   over the color, line width and number of points.
-showEnvelope' :: EnvelopeOpts -> Diagram V2 -> Diagram V2
-showEnvelope' opts d = fromVertices pts # applyStyle (opts^.style) <> d
-  where
-    pts = catMaybes [envelopePMay v d | v <- map (`rotateBy` unitX) [0,inc..top]]
-    -- w   = opts ^. eLineWidth
-    inc = 1 / fromIntegral (opts^.envelopePoints)
-    top = 1 - inc
+-- showEnvelope' :: EnvelopeOpts -> Diagram V2 -> Diagram V2
+-- showEnvelope' opts d = fromVertices pts # applyStyle (opts^.style) <> d
+--   where
+--     pts = catMaybes [envelopePMay v d | v <- map (`rotateBy` unitX) [0,inc..top]]
+--     -- w   = opts ^. eLineWidth
+--     inc = 1 / fromIntegral (opts^.envelopePoints)
+--     top = 1 - inc
 
 
 -- | Mark the envelope with an approximating cubic spline
 --   using 32 points, medium line width and red line color.
-showEnvelope :: Diagram V2 -> Diagram V2
-showEnvelope = showEnvelope' def
+-- showEnvelope :: Diagram V2 -> Diagram V2
+-- showEnvelope = showEnvelope' def
 
 ------------------------------------------------------------------------
 -- Approximating the trace

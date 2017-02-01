@@ -117,6 +117,10 @@ import           Geometry.Trace
 import           Geometry.Transform
 import           Geometry.ThreeD.Shapes
 
+import Geometry.Trail (FromTrail(..))
+import Geometry.Segment (Crossings)
+import Geometry.Path (toPath)
+
 import           Diagrams.Types.Annotations
 import           Diagrams.Types.Measure
 import           Diagrams.Types.Names
@@ -124,6 +128,7 @@ import           Diagrams.Types.Style
 import qualified Diagrams.Types.Tree as T
 
 import           Linear.Metric
+import           Linear.V2 (V2)
 import           Linear.V3 (V3)
 
 -- | Class of numbers that are 'RealFloat' and 'Typeable'. This class is used to
@@ -368,6 +373,12 @@ instance (Metric v, HasLinearMap v, OrderedField n)
 instance (HasLinearMap v, OrderedField n) => Enveloped (QDiagram v n m) where
   getEnvelope = foldU (\u e -> view upEnvelope u <> e) EmptyEnvelope
   {-# INLINE getEnvelope #-}
+
+instance TypeableFloat n => FromTrail (QDiagram V2 n Any) where
+  fromLocTrail = fmap (Any . (/=0)) . primQD . toPath
+
+instance TypeableFloat n => FromTrail (QDiagram V2 n Crossings) where
+  fromLocTrail = primQD . toPath
 
 -- | Fold over all up annotation in a diagram.
 foldU

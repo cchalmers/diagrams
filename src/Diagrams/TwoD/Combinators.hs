@@ -55,7 +55,7 @@ import Linear.Vector
 -- -- import           Geometry.Path
 -- -- import           Geometry.Segment
 -- import Geometry.HasOrigin
--- -- import           Geometry.TrailLike
+-- -- import           Geometry.FromTrail
 -- -- import           Geometry.TwoD.Align
 -- import           Geometry.Juxtapose
 -- -- import           Geometry.TwoD.Attributes (fc)
@@ -69,7 +69,7 @@ import Diagrams.Types
 import Diagrams.Util
 import Diagrams.Attributes
 import Diagrams.TwoD.Attributes
-import Diagrams.TwoD.Path.Unboxed () -- orphan traillike diagram instance
+-- import Diagrams.TwoD.Path.Unboxed () -- orphan traillike diagram instance
 -- import           Geometry.Util            (( # ))
 
 -- import           Linear.Affine
@@ -113,7 +113,7 @@ strutY d = strut (zero & _y .~ d)
 --   centered horizontally the padding may appear \"uneven\".  If this
 --   is not desired, the origin can be centered (using 'centerX')
 --   before applying @padX@.
-padX :: (HasLinearMap v, R1 v, OrderedField n, Monoid' m)
+padX :: (HasLinearMap v, R1 v, OrderedField n)
      => n -> QDiagram v n m -> QDiagram v n m
 padX s d = withEnvelope (scaleX s $ getEnvelope d) d
 {-# INLINE padX #-}
@@ -125,7 +125,7 @@ padX s d = withEnvelope (scaleX s $ getEnvelope d) d
 --   centered vertically the padding may appear \"uneven\".  If this is
 --   not desired, the origin can be centered (using 'centerY') before
 --   applying @padY@.
-padY :: (HasLinearMap v, R2 v, Monoid' m, OrderedField n)
+padY :: (HasLinearMap v, R2 v, OrderedField n)
      => n -> QDiagram v n m -> QDiagram v n m
 padY s d = withEnvelope (scaleY s $ getEnvelope d) d
 {-# INLINE padY #-}
@@ -200,7 +200,7 @@ rectEnvelope p (V2 w h) = withEnvelope (rect w h # alignBL # moveTo p :: Path V2
 -- | Construct a bounding rectangle for an enveloped object, that is,
 --   the smallest axis-aligned rectangle which encloses the object.
 boundingRect
-  :: (InSpace V2 n a, SameSpace a t, Enveloped t, TrailLike t, Transformable t, Monoid t, Enveloped a)
+  :: (InSpace V2 n a, SameSpace a t, Enveloped t, FromTrail t, Transformable t, Monoid t, Enveloped a)
   => a -> t
 boundingRect = (`boxFit` unitSquare) . boundingBox
 

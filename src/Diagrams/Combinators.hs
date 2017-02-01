@@ -40,6 +40,7 @@ import Linear (V3)
 import Linear.Vector ((*^))
 
 import Diagrams.Types
+import qualified Numeric.Interval.NonEmpty.Internal as I
 
 ------------------------------------------------------------
 -- Working with envelopes
@@ -96,8 +97,12 @@ pad s = modEnvelope (scale s)
 --   amount @s@, s is in the local units of the diagram. This function
 --   is similar to @pad@, only it takes an absolute quantity and
 --   pre-centering should not be necessary.
-frame :: Num n => n -> QDiagram v n m -> QDiagram v n m
-frame s = modEnvelope $ onEnvelope (\f x -> f x + s)
+frame :: (Ord n, Fractional n) => n -> QDiagram v n m -> QDiagram v n m
+frame s = modEnvelope $ onEnvelope (\f x -> inflate (f x))
+  where
+    inflate (I.I a b)
+      | 2*s > b - a = I.singleton ((a+b)/2)
+      | otherwise   = I.I (a + s) (b - s)
 {-# INLINEABLE [0] frame #-}
 {-# SPECIALISE frame :: Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE frame :: Double -> Diagram V3 -> Diagram V3 #-}
@@ -166,8 +171,11 @@ deformEnvelope
 deformEnvelope s v = modEnvelope (onEnvelope deformE)
   where
     deformE f v'
-      | dp > 0    = f v' + dp*s
+      | dp > 0    = shift (dp*s) (f v')
       | otherwise = f v'
       where dp = v' `dot` v
 {-# INLINE deformEnvelope #-}
+
+shift :: Num n => n -> I.Interval n -> I.Interval n
+shift s (I.I a b) = I.I (a + s) (b + s)
 

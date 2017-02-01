@@ -91,7 +91,7 @@ import qualified Data.Foldable         as F
 import           Data.Semigroup
 import qualified Data.Sequence         as Seq
 
-import           Geometry.Path.Unboxed
+import           Geometry.Path
 import           Geometry.Query
 import           Geometry.Space
 import           Geometry.Transform
@@ -502,7 +502,7 @@ fcA = fillColor
 -- Clip ----------------------------------------------------------------
 
 -- | A clip is a list of paths that make up the clip.
-newtype Clip = Clip (Seq.Seq (UPath V2 Double))
+newtype Clip = Clip (Seq.Seq (Path V2 Double))
   deriving (Semigroup, Monoid, Typeable)
 -- Note: It is possible to represent a clip as a single path by taking
 -- the intersection of each path, but this seems simpler.
@@ -523,15 +523,15 @@ instance HasQuery Clip All where
 instance AnnotationClass Clip where
   type AnnotType Clip = 'TAnnot
 
-_Clip :: Iso' Clip (Seq.Seq (UPath V2 Double))
+_Clip :: Iso' Clip (Seq.Seq (Path V2 Double))
 _Clip = coerced
 {-# INLINE _Clip #-}
 
-clip :: UPath V2 Double -> Diagram V2 -> Diagram V2
+clip :: Path V2 Double -> Diagram V2 -> Diagram V2
 clip = multiClip . Seq.singleton
 {-# INLINE clip #-}
 
-multiClip :: Seq.Seq (UPath V2 Double) -> Diagram V2 -> Diagram V2
+multiClip :: Seq.Seq (Path V2 Double) -> Diagram V2 -> Diagram V2
 multiClip = applyAnnot _Clip
 {-# INLINE multiClip #-}
 

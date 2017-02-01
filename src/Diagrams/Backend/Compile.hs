@@ -44,7 +44,7 @@ import           Geometry.Envelope    (size)
 import           Geometry.Transform
 import           Geometry.Space
 import           Geometry.Path (Path)
-import           Geometry.Path.Unboxed (UPath)
+-- import           Geometry.Path.Unboxed (UPath)
 import           Geometry.ThreeD.Shapes
 import           Geometry.ThreeD.Types
 import           Codec.Picture.Types  (DynamicImage, dynamicMap, imageWidth, imageHeight)
@@ -102,8 +102,8 @@ _Path :: (Typeable v, Additive v, Typeable n, Num n) => Prism' (Prim v n) (Path 
 _Path = _Prim
 
 -- | Prism onto to an unboxed path
-_UPath :: (Typeable v, Additive v, Typeable n, Num n) => Prism' (Prim v n) (UPath v n)
-_UPath = _Prim
+-- _UPath :: (Typeable v, Additive v, Typeable n, Num n) => Prism' (Prim v n) (UPath v n)
+-- _UPath = _Prim
 
 -- | Prism onto to a text.
 _Text :: (Typeable n, Num n) => Prism' (Prim V2 n) (Text n)
@@ -135,7 +135,7 @@ _Frustum = _Prim
 _Sphere :: (Typeable n, Num n) => Prism' (Prim V3 n) (Sphere n)
 _Sphere = _Prim
 
-_PointLight :: (Typeable n, Num n) => Prism' (Prim V3 n) (PointLight n)
+_PointLight :: Prism' (Prim V3 Double) PointLight
 _PointLight = _Prim
 
 -- Patterns ------------------------------------------------------------
@@ -152,7 +152,7 @@ pattern Sphere_ :: (Typeable n, Num n) => Prim V3 n
 pattern Sphere_ <- (is _Sphere -> True) where
   Sphere_ = Prim Sphere
 
-pattern PointLight_ :: (Typeable n, Num n) => P3 n -> Colour Double -> Prim V3 n
+pattern PointLight_ :: P3 Double -> Colour Double -> Prim V3 Double
 pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
   PointLight_ p c = Prim (PointLight p c)
 
@@ -161,10 +161,10 @@ pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
 pattern Path_ p <- (preview _Path -> Just p) where
   Path_ p = Prim p
 
-pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
-               => UPath v n -> Prim v n
-pattern UPath_ p <- (preview _UPath -> Just p) where
-  UPath_ p = Prim p
+-- pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
+--                => UPath v n -> Prim v n
+-- pattern UPath_ p <- (preview _UPath -> Just p) where
+--   UPath_ p = Prim p
 
 pattern Text_ :: (Typeable n, Num n) => Text n -> Prim V2 n
 pattern Text_ p <- (preview _Text -> Just p) where

@@ -92,7 +92,7 @@ import           System.IO                 (hFlush, stdout)
 import           System.Process            (readProcessWithExitCode)
 
 import           Geometry.Size
-import           Geometry.Space
+-- import           Geometry.Space
 import           Geometry.TwoD.Size
 import           Geometry.TwoD.Types
 

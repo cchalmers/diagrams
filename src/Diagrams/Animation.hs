@@ -37,6 +37,7 @@ import           Data.Foldable             (foldMap)
 #endif
 
 import Geometry
+import Geometry.BoundingBox (boxTransform)
 import Diagrams.Types
 import           Diagrams.Animation.Active ()
 
@@ -108,20 +109,20 @@ animEnvelope' r a = modEnvelope (const . getEnvelope $ simulate r a) <$> a
 --   Uses 30 samples per time unit by default; to adjust this number
 --   see 'animRect''.
 animRect
-  :: (InSpace V2 n t, TrailLike t)
+  :: (InSpace V2 n t, Floating n, Ord n, FromTrail t)
   => QAnimation V2 n m -> t
-animRect = trailLike . animRect' 30
+animRect = fromLocTrail . animRect' 30
 
 -- | Like 'animRect', but with an adjustible sample rate.  The first
 --   parameter is the number of samples per time unit to use. Lower
 --   rates will be faster but less accurate; higher rates are more
 --   accurate but slower.
 animRect'
-  :: (InSpace V2 n t, TrailLike t)
+  :: (InSpace V2 n t, Floating n, Ord n, FromTrail t)
   => Rational -> QAnimation V2 n m -> t
 animRect' r anim =
   case boxTransform (boundingBox results) (fromCorners (-0.5) 0.5) of
-    Just t  -> trailLike $ transform t (rect 1 1)
+    Just t  -> fromLocTrail $ transform t (rect 1 1)
     Nothing -> rect 1 1
   where
     results = simulate r anim

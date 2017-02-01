@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DefaultSignatures            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -417,6 +418,9 @@ class ApplyStyle a where
   -- | /Apply/ a style by combining it (on the left) with the existing
   --   style.
   applyStyle :: Style (V a) (N a) -> a -> a
+
+  default applyStyle :: HasStyle a => Style (V a) (N a) -> a -> a
+  applyStyle  = over style . applyStyle
 
 instance ApplyStyle (Style v n) where
   applyStyle = mappend

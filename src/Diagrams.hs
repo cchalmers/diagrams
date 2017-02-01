@@ -38,7 +38,7 @@ module Diagrams
   , module Diagrams.Attributes
 
   , module Diagrams.TwoD.Attributes
-  , module Diagrams.TwoD.Path.Unboxed
+  , module Diagrams.TwoD.Path
 
     -- | Alignment of diagrams relative to their envelopes.
   -- , module Geometry.Align
@@ -66,10 +66,10 @@ module Diagrams
 
     -- | Computing tangent and normal vectors of segments and
     --   trails.
-  , module Geometry.Tangent
+  -- , module Geometry.Tangent
 
     -- | Trail-like things.
-  , module Geometry.TrailLike
+  -- , module Geometry.TrailLike
 
     -- | Paths.
   -- , module Geometry.Path
@@ -123,7 +123,7 @@ module Diagrams
 
   , module Diagrams.TwoD.Model
 
-  , module Diagrams.TwoD.Path.Unboxed
+  -- , module Diagrams.TwoD.Path.Unboxed
 
     -- | Extra things for three-dimensional diagrams.
   -- , module Diagrams.ThreeD
@@ -134,14 +134,37 @@ module Diagrams
     -- | Various utility definitions.
   , module Diagrams.Util
 
+  , module Geometry.TwoD.Types
+  , module Geometry.ThreeD.Types
+  , module Geometry.TwoD.Vector
+  , module Geometry.Space
+
+  , module Diagrams.Types.Style
+  , module Diagrams.Types.Measure
+  , module Diagrams.Types.Annotations
+  , module Diagrams.Types.Names
+
+  , module Geometry.Path
+  , module Geometry.Trail
+  , module Geometry.Segment
+
+  , module Geometry.TwoD.Combinators
+  , module Geometry.TwoD.Shapes
+  , module Diagrams.TwoD.Combinators
+  , module Diagrams.Combinators
+
   ) where
+
+import Geometry.Path
+import Geometry.Trail
+import Geometry.Segment
 
 -- import           Geometry.Align
 import           Geometry.Angle
 import           Diagrams.Animation
 import           Diagrams.Attributes
 import           Diagrams.TwoD.Attributes
-import           Diagrams.TwoD.Path.Unboxed
+import           Diagrams.TwoD.Path
 import           Diagrams.TwoD.Model
 import           Diagrams.TwoD.Combinators
 import           Geometry.BoundingBox
@@ -154,22 +177,35 @@ import           Geometry.Envelope
 import           Geometry.Located
 import           Geometry.Parametric
 -- import           Diagrams.Parametric.Adjust
-import           Geometry.Path.Unboxed ()
+-- import           Geometry.Path.Unboxed ()
 import           Geometry.Points
 import           Geometry.Query
 import           Geometry.Segment
 import           Geometry.Size
-import           Geometry.Tangent
+-- import           Geometry.Tangent
 -- import           Diagrams.ThreeD
 import           Geometry.Trace
-import           Geometry.Trail             hiding (linePoints, loopPoints,
-                                             trailPoints)
-import           Geometry.TrailLike
+import           Geometry.Trail             -- hiding (linePoints, loopPoints,
+                                             -- trailPoints)
+-- import           Geometry.TrailLike
 import           Geometry.Transform
 -- import           Diagrams.TwoD
+import Geometry.TwoD.Types
+import Geometry.ThreeD.Types
+import Geometry.TwoD.Vector
+import Geometry.Space
 import           Diagrams.Util
 
 import Diagrams.Types
+import Diagrams.Types.Style
+import Diagrams.Types.Measure
+import Diagrams.Types.Annotations
+import Diagrams.Types.Names
+
+import Geometry.TwoD.Combinators
+import Geometry.TwoD.Shapes
+import Diagrams.TwoD.Combinators
+import Diagrams.Combinators
 
 -- import Diagrams.TwoD.Path.Unboxed (uStroke)
 
