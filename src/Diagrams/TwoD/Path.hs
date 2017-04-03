@@ -12,7 +12,7 @@ module Diagrams.TwoD.Path
   ( -- * Constructing path-based diagrams
 
     stroke -- , stroke'
-  , strokePath -- , strokeP, strokePath', strokeP'
+  , strokeCrossings
   -- , strokeTrail, strokeT, strokeTrail', strokeT'
   -- , strokeLine, strokeLoop
   -- , strokeLocTrail, strokeLocT, strokeLocLine, strokeLocLoop
@@ -44,7 +44,7 @@ import Geometry.Transform
 -- import Geometry.Envelope
 -- import Geometry.Trace
 -- import Geometry.TrailLike
--- import Geometry.Trail
+import Geometry.Trail
 import Geometry.Query
 import Geometry.Space
 -- import Geometry.Located
@@ -147,6 +147,13 @@ _fillRule = atAttr _FillRule
 stroke :: (InSpace V2 n t, ToPath t, TypeableFloat n)
        => t -> QDiagram V2 n Any
 stroke = strokePath . toPath
+{-# INLINE stroke #-}
+
+strokeCrossings :: (InSpace V2 n t, ToPath t, TypeableFloat n)
+       => t -> QDiagram V2 n Crossings
+strokeCrossings = strokePathCrossings . toPath
+{-# INLINE strokeCrossings #-}
+
 
 -- | A variant of 'stroke' that takes an extra record of options to
 --   customize its behaviour.  In particular:
@@ -163,13 +170,6 @@ stroke = strokePath . toPath
 -- strokeP :: TypeableFloat n
 --         => Path V2 n -> QDiagram V2 n Crossings
 -- strokeP = strokeP' (def :: StrokeOpts ())
-
--- | 'stroke' specialised to 'Path'.
-strokePath :: TypeableFloat n => Path V2 n -> QDiagram V2 n Any
-strokePath = fmap (Any . (/=0)) . strokePathCrossings
-
-strokePathCrossings :: TypeableFloat n => Path V2 n -> QDiagram V2 n Crossings
-strokePathCrossings = primQD
 
 -- | 'stroke'' specialised to 'Path'.
 -- strokeP' :: (TypeableFloat n, IsName a)

@@ -49,6 +49,9 @@ module Diagrams.Types
     -- ** Creating diagrams
   , primQD, mkQD, mkQD', pointDiagram
 
+    -- * Path primitive
+  , strokePath, strokePathCrossings
+
     -- | For many more ways of combining diagrams, see
     --   "Diagrams.Combinators" and "Diagrams.TwoD.Combinators"
     --   from the diagrams-lib package.
@@ -119,7 +122,7 @@ import           Geometry.ThreeD.Shapes
 
 import Geometry.Trail (FromTrail(..))
 import Geometry.Segment (Crossings)
-import Geometry.Path (toPath)
+import Geometry.Path (Path, toPath)
 
 import           Diagrams.Types.Annotations
 import           Diagrams.Types.Measure
@@ -127,6 +130,7 @@ import           Diagrams.Types.Names
 import           Diagrams.Types.Style
 import qualified Diagrams.Types.Tree as T
 
+import           Linear.Vector
 import           Linear.Metric
 import           Linear.V2 (V2)
 import           Linear.V3 (V3)
@@ -353,7 +357,7 @@ instance Semigroup (QDiagram v n m) where
     -- rendered first, i.e. will be on the bottom.
 
 instance Functor (QDiagram v n) where
-  fmap f (QD d) = QD $ T.mapUAL (fmap f) id (fmap f) d
+  fmap = \f (QD d) -> QD $ T.mapUAL (fmap f) id (fmap f) d
   {-# INLINE fmap #-}
 
 instance (HasLinearMap v, Floating n) => ApplyStyle (QDiagram v n m) where
@@ -375,24 +379,46 @@ instance (Metric v, HasLinearMap v, OrderedField n)
   juxtapose = juxtaposeDefault
   {-# INLINE juxtapose #-}
 
+getEnvelopeDia :: (HasLinearMap v, OrderedField n) => QDiagram v n m -> Envelope v n
+getEnvelopeDia = foldU (\u e -> view upEnvelope u <> e) EmptyEnvelope
+{-# SPECIALISE getEnvelopeDia :: QDiagram V2 Double m -> Envelope V2 Double #-}
+{-# SPECIALISE getEnvelopeDia :: QDiagram V3 Double m -> Envelope V3 Double #-}
+
 instance (HasLinearMap v, OrderedField n) => Enveloped (QDiagram v n m) where
-  getEnvelope = foldU (\u e -> view upEnvelope u <> e) EmptyEnvelope
+  getEnvelope = getEnvelopeDia
   {-# INLINE getEnvelope #-}
 
+-- | 'stroke' specialised to 'Path'.
+strokePath :: TypeableFloat n => Path V2 n -> QDiagram V2 n Any
+strokePath = \p -> mkQD (Prim p) (getEnvelope p) (getTrace p) (Any . (/= 0) <$> getQuery p)
+{-# SPECIALISE strokePath :: Path V2 Double -> Diagram V2 #-}
+
+strokePathCrossings :: TypeableFloat n => Path V2 n -> QDiagram V2 n Crossings
+strokePathCrossings = primQD
+{-# SPECIALISE strokePathCrossings :: Path V2 Double -> QDiagram V2 Double Crossings #-}
+
 instance TypeableFloat n => FromTrail (QDiagram V2 n Any) where
-  fromLocTrail = fmap (Any . (/=0)) . primQD . toPath
+  fromLocTrail = strokePath . toPath
+  {-# INLINE fromLocTrail #-}
 
 instance TypeableFloat n => FromTrail (QDiagram V2 n Crossings) where
-  fromLocTrail = primQD . toPath
+  fromLocTrail = strokePathCrossings . toPath
+  {-# INLINE fromLocTrail #-}
 
 -- | Fold over all up annotation in a diagram.
 foldU
   :: (HasLinearMap v, OrderedField n)
   => (UpAnnots v n m -> b -> b) -> b -> QDiagram v n m -> b
-foldU f b0 (QD t) = T.foldU f b0 t
+foldU = \f b0 (QD t) -> T.foldU f b0 t
+{-# INLINE foldU #-}
+
+getTraceDia :: (HasLinearMap v, OrderedField n) => QDiagram v n m -> Trace v n
+getTraceDia = foldU (\u e -> view upTrace u <> e) mempty
+{-# SPECIALISE getTraceDia :: QDiagram V2 Double m -> Trace V2 Double #-}
+{-# SPECIALISE getTraceDia :: QDiagram V3 Double m -> Trace V3 Double #-}
 
 instance (HasLinearMap v, OrderedField n) => Traced (QDiagram v n m) where
-  getTrace = foldU (\u e -> view upTrace u <> e) mempty
+  getTrace = getTraceDia
   {-# INLINE getTrace #-}
 
 instance (Metric v, HasLinearMap v, OrderedField n)
