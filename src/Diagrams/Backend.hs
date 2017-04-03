@@ -89,6 +89,10 @@ class Backend b => BackendBuild b where
   -- | Lens onto the size spec.
   sizeSpec :: Lens' (Options b) (SizeSpec V2 Int)
 
+  -- | Show the options in a way that may be interpreted by ghc
+  --   verbatim. If the show instance is derived, this can just be 'show'.
+  showOptions :: Options b -> String
+
 -- | Render a diagram to a file for a specific backend, using the
 --   default options.
 saveDiagram
