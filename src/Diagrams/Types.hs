@@ -102,7 +102,7 @@ import           Data.Coerce
 import           Data.Semigroup
 import           Data.Typeable
 
-import           Data.Monoid.Coproduct
+import           Data.Monoid.Coproduct.Strict
 -- import           Data.Monoid.Deletable
 import           Data.Monoid.WithSemigroup
 
@@ -356,13 +356,18 @@ instance Functor (QDiagram v n) where
   fmap f (QD d) = QD $ T.mapUAL (fmap f) id (fmap f) d
   {-# INLINE fmap #-}
 
-instance HasLinearMap v => ApplyStyle (QDiagram v n m) where
+instance (HasLinearMap v, Floating n) => ApplyStyle (QDiagram v n m) where
   applyStyle = over _Wrapped' . T.down . inR
   {-# INLINE applyStyle #-}
 
+getQueryDia :: (HasLinearMap v, OrderedField n, Monoid m) => QDiagram v n m -> Query v n m
+getQueryDia = foldU (\u e -> view upQuery u `mappend` e) mempty
+{-# SPECIALISE getQueryDia :: Diagram V2 -> Query V2 Double Any #-}
+{-# SPECIALISE getQueryDia :: Diagram V3 -> Query V3 Double Any #-}
+
 instance (HasLinearMap v, OrderedField n, Monoid' m)
     => HasQuery (QDiagram v n m) m where
-  getQuery = foldU (\u e -> view upQuery u <> e) mempty
+  getQuery = getQueryDia
   {-# INLINE getQuery #-}
 
 instance (Metric v, HasLinearMap v, OrderedField n)
@@ -395,8 +400,13 @@ instance (Metric v, HasLinearMap v, OrderedField n)
   moveOriginTo = translate . (origin .-.)
   {-# INLINE moveOriginTo #-}
 
-instance Transformable (QDiagram v n m) where
-  transform = over _Wrapped' . T.down . inL
+transformDia :: (Traversable v, Additive v, Floating n) => Transformation v n -> QDiagram v n m -> QDiagram v n m
+transformDia = over _Wrapped' . T.down . inL
+{-# SPECIALISE transformDia :: Transformation V2 Double -> QDiagram V2 Double m ->
+   QDiagram V2 Double m #-}
+
+instance (Additive v, Traversable v, Floating n) => Transformable (QDiagram v n m) where
+  transform = transformDia
   {-# INLINE transform #-}
 
 -- instance (HasLinearMap v, OrderedField n)

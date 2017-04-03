@@ -35,7 +35,7 @@ module Diagrams.Backend.Compile
 import           Control.Lens              hiding (transform)
 import           Control.Lens.Extras       (is)
 import qualified Data.Foldable             as F
-import           Data.Monoid.Coproduct
+import           Data.Monoid.Coproduct.Strict
 import qualified Data.Monoid as            M
 import           Data.Typeable
 import Data.Colour (Colour)

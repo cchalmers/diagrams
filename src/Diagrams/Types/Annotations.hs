@@ -60,7 +60,7 @@ module Diagrams.Types.Annotations
 
 import           Control.Lens          hiding (transform)
 import           Data.Monoid.Action
-import           Data.Monoid.Coproduct
+import           Data.Monoid.Coproduct.Strict
 import           Data.Semigroup
 import           Data.Typeable
 import           GHC.Exts
