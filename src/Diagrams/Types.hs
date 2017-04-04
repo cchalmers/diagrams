@@ -360,8 +360,13 @@ instance Functor (QDiagram v n) where
   fmap = \f (QD d) -> QD $ T.mapUAL (fmap f) id (fmap f) d
   {-# INLINE fmap #-}
 
+applyStyleDia :: (HasLinearMap v, Floating n) => Style v n -> QDiagram v n m -> QDiagram v n m
+applyStyleDia = over _Wrapped' . T.down . inR
+{-# SPECIALISE applyStyleDia :: Style V2 Double -> QDiagram V2 Double m -> QDiagram V2 Double m #-}
+{-# SPECIALISE applyStyleDia :: Style V3 Double -> QDiagram V3 Double m -> QDiagram V3 Double m #-}
+
 instance (HasLinearMap v, Floating n) => ApplyStyle (QDiagram v n m) where
-  applyStyle = over _Wrapped' . T.down . inR
+  applyStyle = applyStyleDia -- over _Wrapped' . T.down . inR
   {-# INLINE applyStyle #-}
 
 getQueryDia :: (HasLinearMap v, OrderedField n, Monoid m) => QDiagram v n m -> Query v n m

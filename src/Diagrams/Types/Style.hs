@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DefaultSignatures            #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
@@ -9,13 +9,8 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE UndecidableSuperClasses    #-}
-
-{-# LANGUAGE PolyKinds                  #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -87,6 +82,7 @@ import           Diagrams.Types.Measure
 import           Geometry.Space
 import           Geometry.Transform     hiding (T)
 
+import           Linear                 (V2, V3)
 import           Linear.Vector
 
 import           GHC.Exts
@@ -195,13 +191,22 @@ instance Show (Attribute v n) where
     MAttribute a -> showString "MAttribute " . showsPrec 11 (mType a)
     TAttribute a -> showString "TAttribute " . showsPrec 11 (typeOf a)
 
+transformAttribute
+  :: (Additive v, Traversable v, Floating n)
+  => Transformation v n -> Attribute v n -> Attribute v n
+transformAttribute = \t -> \case
+  IAttribute a -> IAttribute a
+  MAttribute a -> MAttribute $ scaleLocal (avgScale t) a
+  TAttribute a -> TAttribute $ transform t a
+{-# SPECIALISE transformAttribute :: Transformation V2 Double -> Attribute V2 Double -> Attribute V2 Double #-}
+{-# SPECIALISE transformAttribute :: Transformation V3 Double -> Attribute V3 Double -> Attribute V3 Double #-}
+
 -- | 'TAttribute's are transformed directly, 'MAttribute's have their
 --   local scale multiplied by the average scale of the transform.
 --   Inert 'Attribute's are unaffected.
 instance (Additive v, Traversable v, Floating n) => Transformable (Attribute v n) where
-  transform _ (IAttribute a) = IAttribute a
-  transform t (MAttribute a) = MAttribute $ scaleLocal (avgScale t) a
-  transform t (TAttribute a) = TAttribute $ transform t a
+  transform = transformAttribute
+  {-# INLINE transform #-}
 
 -- | Given a isomorphism between an attribute's internal representation
 --   and the one you use, make a prism on it.
@@ -221,6 +226,7 @@ mkAttr ra r =
     I -> IAttribute (ra r)
     M -> MAttribute (fmap ra r)
     T -> TAttribute (ra r)
+{-# INLINE mkAttr #-}
 
 fromAttr :: forall a r v n. AttributeClass a => (a -> r) -> Attribute v n -> Maybe (Rep a n r)
 fromAttr ar = \case
@@ -232,6 +238,7 @@ fromAttr ar = \case
     eq _ = eqT
     eqM :: Typeable a' => Measured n a' -> Maybe (a' :~: a)
     eqM _ = eqT
+{-# INLINE fromAttr #-}
 
 -- | Type of an attribute that is stored with a style. Measured
 --   attributes return the type as if it where unmeasured.
@@ -268,12 +275,9 @@ _Style :: Iso' (Style v n) (HM.HashMap TypeRep (Attribute v n))
 _Style = coerced
 {-# INLINE _Style #-}
 
--- | Combine a style by combining the attributes; if the two styles have
---   attributes of the same type they are combined according to their
---   semigroup structure.
-instance Semigroup (Style v n) where
-  Style s1 <> Style s2 = Style $ HM.unionWith combineAttr s1 s2 where
-
+combineStyle :: Style v n -> Style v n -> Style v n
+combineStyle (Style s1) (Style s2) = Style $ HM.unionWith combineAttr s1 s2
+  where
     -- type signature needed for some reason
     combineAttr :: Attribute v n -> Attribute v n -> Attribute v n
     combineAttr (IAttribute a1) (IAttribute a2') | Just a2 <- cast a2'  = IAttribute (a1 <> a2)
@@ -289,18 +293,38 @@ castM m =
   case eqT :: Maybe (a :~: b) of
     Just Refl -> Just m
     Nothing   -> Nothing
+{-# INLINE castM #-}
+
+-- | Combine a style by combining the attributes; if the two styles have
+--   attributes of the same type they are combined according to their
+--   semigroup structure.
+instance Semigroup (Style v n) where
+  (<>) = combineStyle
+  {-# INLINE (<>) #-}
 
 -- | The empty style contains no attributes.
 instance Monoid (Style v n) where
-  mempty  = Style HM.empty
-  mappend = (<>)
+  mempty = Style HM.empty
+  {-# INLINE mempty  #-}
+  mappend = combineStyle
+  {-# INLINE mappend #-}
+
+transformStyle
+  :: (Additive v, Traversable v, Floating n)
+  => Transformation v n -> Style v n -> Style v n
+transformStyle = \t -> _Style . mapped %~ transform t
+{-# SPECIALISE transformStyle :: Transformation V2 Double -> Style V2 Double -> Style V2 Double #-}
+{-# SPECIALISE transformStyle :: Transformation V3 Double -> Style V3 Double -> Style V3 Double #-}
 
 -- | Transform all 'TAttr's, scale all 'MAttr's.
 instance (Additive v, Traversable v, Floating n) => Transformable (Style v n) where
-  transform t = _Style . mapped %~ transform t
+  transform = transformStyle
+  {-# INLINE transform #-}
 
 -- | Styles have no action on other monoids.
-instance A.Action (Style v n) m
+instance A.Action (Style v n) m where
+  act = const id
+  {-# INLINE act #-}
 
 -- | Show the type of the attributes in the style.
 instance Show (Style v n) where
@@ -319,6 +343,7 @@ attributeToStyle a = Style $ HM.singleton (attributeType a) a
 -- @
 attrToStyle :: AttributeSpace a v n => AReview a r -> Rep a n r -> Style v n
 attrToStyle l r = attributeToStyle (mkAttr (review l) r)
+{-# INLINE attrToStyle #-}
 
 -- style lenses --------------------------------------------------------
 
@@ -342,10 +367,9 @@ atAttr l f sty =
   f (sty ^? _Style . ix ty . attribute l) <&>
     \r' -> sty & _Style . at ty .~ fmap (attribute l #) r'
   where
-  ty = getTy l -- typeRep (Proxy @ a)
-  -- I hate top level signatures with forall.
+  ty = getTy l
   getTy :: forall a r. Typeable a => AnIso' a r -> TypeRep
-  getTy _ = typeRep (Proxy @ a)
+  getTy _ = typeRep (Proxy :: Proxy a)
 {-# INLINE atAttr #-}
 
 -- Backup styles -------------------------------------------------------
