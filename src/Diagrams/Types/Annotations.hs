@@ -113,7 +113,7 @@ emptyUp :: Monoid m => UpAnnots v n m
 emptyUp =
   UpAnnots
     EmptyEnvelope
-    (Trace $ \_ _ -> unsafeMkSortedList [])
+    mempty
     mempty
 {-# INLINE emptyUp #-}
 

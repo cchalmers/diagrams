@@ -41,6 +41,7 @@ import           Data.Default.Class
 import           Data.List                (intercalate)
 -- import qualified Data.Map                 as M
 -- import           Data.Maybe               (catMaybes)
+import Data.Foldable
 import           Data.Semigroup
 import Geometry
 
@@ -202,7 +203,8 @@ showTrace' opts d =  atPoints ps (repeat pt) <> d
     ts = zip rs vs
     p (r, v) = [origin .+^ (s *^ v) | s <- r]
     vs = map (`rotateBy` unitX) [0, inc..top]
-    rs = [getSortedList $ (appTrace . getTrace) d origin v | v <- vs]
+    -- rs = [getSortedList $ (appTrace . getTrace) d origin v | v <- vs]
+    rs = map (toList . (appTrace . getTrace) d origin) vs
     pt = circle sz # applyStyle (opts^.style)
     V2 w h = undefined -- opts^.tScale *^ size d
     sz     = maximum [w, h] -- , opts^.tMinSize]
