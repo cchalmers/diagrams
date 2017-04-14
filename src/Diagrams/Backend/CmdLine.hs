@@ -245,7 +245,7 @@ class WithOutcome a where
   argsParser :: proxy a -> Parser (Args a)
 
   -- | Default case with no arguments
-  default argsParser :: proxy a -> Parser ()
+  default argsParser :: Args a ~ () => proxy a -> Parser (Args a)
   argsParser _ = pure ()
 
   -- | Given an IO action to run on the target of a, and a, execute the
@@ -253,14 +253,14 @@ class WithOutcome a where
   withOutcome :: (Outcome a -> IO ()) -> Args a -> a -> IO ()
 
   -- | Default case where @a@ is the target.
-  default withOutcome :: a ~ Outcome a => (Outcome a -> IO ()) -> () -> a -> IO ()
+  default withOutcome :: (Args a ~ (), a ~ Outcome a) => (Outcome a -> IO ()) -> Args a -> a -> IO ()
   withOutcome f () r = f r
 
 resultProxy :: a -> Proxy (Outcome a)
 resultProxy _ = Proxy
 
 instance WithOutcome a => WithOutcome (IO a) where
-  type Args (IO a)   = Args a
+  type Args (IO a)    = Args a
   type Outcome (IO a) = Outcome a
   argsParser _ = argsParser (Proxy :: Proxy a)
   withOutcome f args ioa = ioa >>= withOutcome f args
