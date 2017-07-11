@@ -47,6 +47,7 @@ module Diagrams.Types.Tree
   -- , _u
   , getU
   , foldU
+  , foldUl'
   , gu
   , mapU
   , mapUAL
@@ -64,9 +65,16 @@ module Diagrams.Types.Tree
   -- , getSubMap
   -- , lookupSub
   , traverseSub
+  , leafs
+  , tapeMatches
+  , matchingU
   -- , ixDUAL
 
     -- * Debugging
+  , Tape (..)
+  , startTape
+  , path
+  , nannots
   , getI
   , idualShow
   , pushDown
@@ -81,6 +89,7 @@ import           Data.Monoid.Action
 import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
 import           Data.Typeable
+import Data.Foldable
 
 import Data.Hashable (Hashable)
 import           Data.HashMap.Lazy                 (HashMap)
@@ -95,6 +104,26 @@ import qualified Data.Set                  as Set
 import           Control.Lens
 import           Control.Lens.Internal (Pretext (..), Pretext', ipeek)
 import           Data.Profunctor.Unsafe ((#.))
+
+fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
+fldUl' = go where
+  go f !b = \case
+    Leaf     u _         -> f b u
+    Up       u           -> f b u
+    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
+    Label  _ _ (NE t)    -> go f b t
+    Label  _ _ EmptyDUAL -> b
+    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
+    Annot  _ _ t         -> go f b t
+    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
+{-# INLINE fldUl' #-}
+
+-- | Fold each u annotation in order.
+foldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> IDUAL i d u m a l -> b
+foldUl' = \f b0 -> \case
+  NE t      -> fldUl' f b0 t
+  EmptyDUAL -> b0
+{-# INLINE foldUl' #-}
 
 ------------------------------------------------------------------------
 -- Labeling
@@ -120,8 +149,8 @@ path f (T p n) = f p <&> \p' -> T p' n
 
 -- | Number of annotation to pass between the last concat and the
 --   target.
--- nannots :: Lens' Tape Int
--- nannots f (T p n) = f n <&> T p
+nannots :: Lens' Tape Int
+nannots f (T p n) = f n <&> T p
 
 -- Routes --------------------------------------------------------------
 
@@ -460,6 +489,7 @@ instance (Hashable i, Eq i) => Semigroup (IDUAL i d u m a l) where
   NE t1     <> NE t2     = NE (t1 <> t2)
   EmptyDUAL <> a         = a
   a         <> EmptyDUAL = a
+  {-# INLINE (<>) #-}
 
 instance (Hashable i, Eq i) => Monoid (IDUAL i d u m a l) where
   mappend = (<>)
@@ -574,9 +604,10 @@ getU _      = Nothing
 
 -- | Fold each u annotation in order.
 foldU :: (Action d u, Action m u) => (u -> b -> b) -> b -> IDUAL i d u m a l -> b
-foldU f b0 = \case
+foldU = \f b0 -> \case
   NE t      -> fldU f b0 t
   EmptyDUAL -> b0
+{-# INLINE foldU #-}
 
 -- | Get top level up annotation of a non-empty DUALTree.
 getI :: IDUAL i d u m a l -> Labels i
@@ -849,6 +880,30 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     | otherwise = error "route: tried to index wrong part of concat"
   go2 d [] s = pure (down d (rebuildSeq s))
 
+-- All leafs -----------------------------------------------------------
+
+leafs :: Monoid d => Traversal (IDUAL i d u m a l) (IDUAL i d u m a l') (IDUAL i d u m a l) (IDUAL i d u m a l')
+leafs _ EmptyDUAL = pure EmptyDUAL
+leafs f (NE t0)   = NE <$> go mempty t0 where
+  go !d = \case
+    Leaf u l             -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
+                              NE t      -> t
+                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+    Up   u               -> f (NE $ Down NoLabels d (Up u)) <&> \case
+                              NE t      -> t
+                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+
+    -- what to do about up modifications?
+    UpMod i fu t         -> UpMod i fu <$> go d t
+
+    Label i md EmptyDUAL -> pure (Label i md EmptyDUAL)
+    Label i md (NE t)    -> Label i md . NE <$> go d t
+    Down _ d' t          -> go (d `mappend` d') t
+    Annot i a t          -> Annot i a <$> go d t
+    Concat i ts          -> Concat i <$> traverse (go d) ts
+{-# INLINE leafs #-}
+
+
 -- Traversing downs ----------------------------------------------------
 
 downs :: (Eq i, Hashable i, Action d a, Monoid' d) => Traversal' (IDUAL i d u m a l) d
@@ -865,6 +920,51 @@ downs f (NE t0)   = go mempty t0 where
         Nothing -> label' lb Nothing <$> go d t
     Concat _ ts          -> foldr mappend mempty <$> traverse (go d) ts
     n                    -> f d <&> \d' -> down d' (NE n)
+
+-- Traversing ups ------------------------------------------------------
+
+-- | Match leafs whose up annotations match a predicate. Any up
+-- modifications are ignored
+matchingU :: (Action d u, Monoid d) => (u -> Bool) -> Traversal' (IDUAL i d u m a l) (IDUAL i d u m a l)
+matchingU _ _ EmptyDUAL  = pure EmptyDUAL
+matchingU pred f (NE t0) = NE <$> go mempty t0 where
+
+  go !d = \case
+    lef@(Leaf u l)
+      | pred (act d u)   -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
+                              NE t      -> t
+                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+      | otherwise        -> pure lef
+    Up   u               -> f (NE $ Down NoLabels d (Up u)) <&> \case
+                              NE t      -> t
+                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+
+    UpMod i m t         -> UpMod i m <$> go d t
+
+    Label i md EmptyDUAL -> pure (Label i md EmptyDUAL)
+    Label i md (NE t)    -> Label i md . NE <$> go d t
+    Down _ d' t          -> go (d `mappend` d') t
+    Annot i a t          -> Annot i a <$> go d t
+    Concat i ts          -> Concat i <$> traverse (go d) ts
+{-# INLINE matchingU #-}
+
+tapeMatches :: (Monoid d, Action d u) => (u -> Bool) -> IDUAL i d u m a l -> [Tape]
+tapeMatches _ EmptyDUAL = []
+tapeMatches pred (NE t0) = go mempty startTape t0 where
+  go !d tp = \case
+    Leaf u _
+      | pred (act d u)   -> [tp]
+      | otherwise        -> []
+    Up u
+      | pred (act d u)   -> [tp]
+      | otherwise        -> []
+    UpMod _ _ t          -> go d (tp & nannots +~ 1) t
+    Label _ _ EmptyDUAL -> []
+    Label _ _ (NE t)    -> go d tp t
+    Down _ d' t          -> go (d `mappend` d') tp t
+    Annot _ _ t          -> go d (tp & nannots +~ 1) t
+    Concat _ ts          -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
+{-# INLINE tapeMatches #-}
 
 -- -- Debugging -----------------------------------------------------------
 

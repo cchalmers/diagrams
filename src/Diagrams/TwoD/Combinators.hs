@@ -69,7 +69,6 @@ import Diagrams.Types
 import Diagrams.Util
 import Diagrams.Attributes
 import Diagrams.TwoD.Attributes
--- import Diagrams.TwoD.Path.Unboxed () -- orphan traillike diagram instance
 -- import           Geometry.Util            (( # ))
 
 -- import           Linear.Affine

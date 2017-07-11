@@ -66,7 +66,7 @@ module Diagrams.Types.Style
 
   -- * Internals
   -- These shouldn't been nessesary but are exported just incase.
-
+  , _Style
   ) where
 
 import           Control.Arrow          ((***))
@@ -164,9 +164,9 @@ class SingAttr (i::AttrKind) where
   sing :: AttrS i
 
 data AttrS k where
-  I :: k ~ 'IAttr => AttrS k
-  M :: k ~ 'MAttr => AttrS k
-  T :: k ~ 'TAttr => AttrS k
+  I :: AttrS 'IAttr
+  M :: AttrS 'MAttr
+  T :: AttrS 'TAttr
 
 instance SingAttr 'IAttr where sing = I
 instance SingAttr 'MAttr where sing = M

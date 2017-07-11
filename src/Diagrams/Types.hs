@@ -61,6 +61,7 @@ module Diagrams.Types
   , named
   , localize
   , styles
+  , leafs
 
     -- *** Replaceing up annotations
   , modEnvelope
@@ -203,26 +204,20 @@ data QDiaLeaf v n m
 --   distinguished from 'Diagram', where @m@ is fixed to @Any@. This
 --   is not really a very good name, but it's probably not worth
 --   changing it at this point.
-newtype QDiagram v n m = QD
-  (T.IDUAL
+newtype QDiagram v n m = QD (QDT v n m)
+
+type QDT v n m =
+  T.IDUAL
     AName
     (DownAnnots v n)
     (UpAnnots v n m)
     (UpModify v n)
     (Annotation v n)
     (QDiaLeaf v n m)
-  )
 
 instance Rewrapped (QDiagram v n m) (QDiagram v' n' m')
 instance Wrapped (QDiagram v n m) where
-  type Unwrapped (QDiagram v n m) =
-    T.IDUAL
-      AName
-      (DownAnnots v n)
-      (UpAnnots v n m)
-      (UpModify v n)
-      (Annotation v n)
-      (QDiaLeaf v n m)
+  type Unwrapped (QDiagram v n m) = QDT v n m
   _Wrapped' = coerced
   {-# INLINE _Wrapped' #-}
 
@@ -285,6 +280,13 @@ styles
   :: (HasLinearMap v, OrderedField n)
   => Traversal' (QDiagram v n m) (Style v n)
 styles = _Wrapped . T.downs . downStyle
+
+leafs
+  :: (HasLinearMap v, OrderedField n)
+  => Traversal' (QDiagram v n m) (QDiagram v n m)
+-- leafs = coerced . (T.leafs :: Traversal' (QDT v n m) (QDT v n m)) . coerced
+leafs = _Wrapped' . T.leafs . _Unwrapped
+{-# INLINE leafs #-}
 
 -- | Get a list of names of subdiagrams and their locations.
 -- names :: (Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
@@ -352,9 +354,10 @@ instance Monoid (QDiagram v n m) where
 
 instance Semigroup (QDiagram v n m) where
   QD d1 <> QD d2 = QD (d2 <> d1)
-  {-# INLINE (<>) #-}
-    -- swap order so that primitives of d2 come first, i.e. will be
-    -- rendered first, i.e. will be on the bottom.
+  {-# NOINLINE (<>) #-}
+  -- Swap order so that primitives of d2 come first, i.e. will be
+  -- rendered first, i.e. will be on the bottom.
+  -- Do NOT inline this, it's huge
 
 instance Functor (QDiagram v n) where
   fmap = \f (QD d) -> QD $ T.mapUAL (fmap f) id (fmap f) d
@@ -379,9 +382,16 @@ instance (HasLinearMap v, OrderedField n, Monoid' m)
   getQuery = getQueryDia
   {-# INLINE getQuery #-}
 
+juxtaposeDia
+  :: (Metric v, HasLinearMap v, OrderedField n)
+  => v n -> QDiagram v n m -> QDiagram v n m -> QDiagram v n m
+juxtaposeDia = juxtaposeDefault
+{-# SPECIALISE juxtaposeDia :: V2 Double -> QDiagram V2 Double m -> QDiagram V2 Double m -> QDiagram V2 Double m #-}
+{-# SPECIALISE juxtaposeDia :: V3 Double -> QDiagram V3 Double m -> QDiagram V3 Double m -> QDiagram V3 Double m #-}
+
 instance (Metric v, HasLinearMap v, OrderedField n)
     => Juxtaposable (QDiagram v n m) where
-  juxtapose = juxtaposeDefault
+  juxtapose = juxtaposeDia
   {-# INLINE juxtapose #-}
 
 getEnvelopeDia :: (HasLinearMap v, OrderedField n) => QDiagram v n m -> Envelope v n
