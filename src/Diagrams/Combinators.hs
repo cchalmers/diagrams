@@ -101,11 +101,12 @@ frame :: (Ord n, Fractional n) => n -> QDiagram v n m -> QDiagram v n m
 frame s = modEnvelope $ onEnvelope (\f x -> inflate (f x))
   where
     inflate (I.I a b)
-      | 2*s > b - a = I.singleton ((a+b)/2)
-      | otherwise   = I.I (a + s) (b - s)
-{-# INLINEABLE [0] frame #-}
-{-# SPECIALISE frame :: Double -> Diagram V2 -> Diagram V2 #-}
-{-# SPECIALISE frame :: Double -> Diagram V3 -> Diagram V3 #-}
+      | a' > b'   = I.singleton ((a+b)/2)
+      | otherwise = I.I a' b'
+      where
+        a' = a - s
+        b' = b + s
+{-# SPECIALISE frame :: Double -> QDiagram v Double m -> QDiagram v Double m #-}
 
 -- | @strut v@ is a diagram which produces no output, but with respect
 --   to alignment and envelope acts like a 1-dimensional segment

@@ -52,7 +52,7 @@ import           Diagrams.Types
 -- import           Diagrams.TwoD.Path
 import           Diagrams.TwoD.Attributes
 import           Data.Monoid.WithSemigroup
-import           Diagrams.TwoD.Path
+-- import           Diagrams.TwoD.Path
 import           Diagrams.TwoD.Text
 -- import           Diagrams.TwoD.Transform  (rotateBy)
 -- import           Diagrams.TwoD.Types
