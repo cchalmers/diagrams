@@ -208,9 +208,9 @@ instance (Parseable a, Parseable b, Parseable c, Parseable d) => Parseable (a, b
 -- Mainable helper parsers ---------------------------------------------
 
 -- | Frames per unit time: @--fpu 60@. Defaults to 30.
-fpuParser :: Parser Double
+fpuParser :: Parser Rational
 fpuParser = option auto $ mconcat
-  [ long "fpu", value 30.0
+  [ long "fpu", value 30
   , help "Frames per unit time (for animations)"]
 
 -- | Parser for the output file: @--output output.ext@ or @-o output.ext@.

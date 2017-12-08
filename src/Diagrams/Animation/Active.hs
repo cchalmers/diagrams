@@ -1,11 +1,12 @@
-{-# LANGUAGE CPP          #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Animation.Active
--- Copyright   :  (c) 2011 Brent Yorgey
+-- Copyright   :  (c) 2011-2017 diagrams team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  byorgey@cis.upenn.edu
 --
@@ -17,45 +18,57 @@
 --   * 'HasOrigin', 'Transformable', and 'HasStyle' instances for
 --     'Active' which all work pointwise.
 --
---   * A 'FromTrail' instance for @'Active' p@ where @p@ is also
---     'FromTrail', which simply lifts a pathlike thing to a constant
---     active value.
+--   * A 'TrailLike' instance for @'Active' t@ where @t@ is also
+--     'TrailLike', which simply lifts a pathlike thing to an
+--     (infinite) constant active value.
 --
---   * A 'Juxtaposable' instance for @'Active' a@ where @a@ is also
+--   * 'Juxtaposable' instances for @'Active' a@ where @a@ is also
 --     'Juxtaposable'.  An active value can be juxtaposed against
---     another by doing the juxtaposition pointwise over time.  The
---     era of @juxtapose v a1 a2@ will be the same as the era of @a2@,
---     unless @a2@ is constant, in which case it will be the era of
---     @a1@.  (Note that @juxtapose v a1 a2@ and @liftA2 (juxtapose v)
---     a1 a2@ therefore have different semantics: the second is an
---     active value whose era is the /combination/ of the eras of @a1@
---     and @a2@).
---
---   * An 'Alignable' instance for @'Active' a@ where @a@ is also
---     'Alignable'; the active value is aligned pointwise over time.
+--     another by doing the juxtaposition pointwise over time.
 
 -----------------------------------------------------------------------------
 
-module Diagrams.Animation.Active where
+module Diagrams.Animation.Active
+  ( activeEnvelope
+  , activeBoundingBox
+  ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative (pure, (<$>))
-#endif
+import           Control.Applicative
 
 import           Geometry
-
-import Diagrams.Types.Style
-
-import           Data.Active
+import           Active
+import           Diagrams.Types.Style
 
 type instance V (Active a) = V a
 type instance N (Active a) = N a
 
--- Yes, these are all orphan instances. Get over it.  We don't want to
--- put them in the 'active' package because 'active' is supposed to be
--- generally useful and shouldn't depend on diagrams.  We'd also
--- rather not put them in diagrams-core so that diagrams-core doesn't
--- have to depend on active.
+-- Another option would be to put these in geometry. Active doesn't
+-- contain any extra dependencies so I see no problem with this.
+
+-- | Like 'animEnvelope', but with an adjustible sample rate.  The first
+--   parameter is the number of samples per time unit to use.  Lower
+--   rates will be faster but less accurate; higher rates are more
+--   accurate but slower.
+
+-- | Automatically assign fixed a envelope to the entirety of an
+--   animation by sampling the envelope at a number of points in time
+--   and taking the union of all the sampled envelopes to form the
+--   \"hull\".  This hull is then used uniformly throughout the
+--   animation.
+--
+--   This function can be very slow because every envelope query needs
+--   to traverse every sample taken. See 'activeBoundingBox' for
+--   constructing a bounding box which is /much/ faster to query.
+activeEnvelope
+  :: (InSpace v n a, Enveloped a)
+  => Rational -> Active a -> Envelope v n
+activeEnvelope r a = getEnvelope (samples r a)
+
+-- | Get the bounding box by taking @r@ samples per time unit.
+activeBoundingBox
+  :: (InSpace v n a, HasBasis v, Enveloped a)
+  => Rational -> Active a -> BoundingBox v n
+activeBoundingBox r a = foldMap boundingBox (samples r a)
 
 instance HasOrigin a => HasOrigin (Active a) where
   moveOriginTo = fmap . moveOriginTo
@@ -70,35 +83,7 @@ instance FromTrail t => FromTrail (Active t) where
   fromLocTrail = pure . fromLocTrail
 
 -- | An active value can be juxtaposed against another by doing the
---   juxtaposition pointwise over time.  The era of @juxtapose v a1
---   a2@ will be the same as the era of @a2@, unless @a2@ is constant,
---   in which case it will be the era of @a1@.  (Note that @juxtapose
---   v a1 a2@ and @liftA2 (juxtapose v) a1 a2@ therefore have
---   different semantics: the second is an active value whose era is
---   the /combination/ of the eras of @a1@ and @a2@).
+-- juxtaposition pointwise over time.
 instance Juxtaposable a => Juxtaposable (Active a) where
+  juxtapose = liftA2 . juxtapose
 
-  juxtapose v a1 a2 =
-    onActive       -- a1
-      (\c1 ->        -- if a1 is constant, just juxtapose a2 pointwise with its value
-        juxtapose v c1 <$> a2
-      )
-                     -- if a1 is dynamic...
-      (onDynamic $ \s1 e1 d1 ->
-        onActive      -- a2
-          (\c2 ->      -- if a2 is constant, juxtapose pointwise with a1.  Since
-                       --   the result will no longer be constant, the result
-                       --   needs an era: we use a1's.
-            mkActive s1 e1 (\t -> juxtapose v (d1 t) c2)
-          )
-
-                       -- otherwise, juxtapose pointwise, without changing a2's era
-          (onDynamic $ \s2 e2 d2 ->
-            mkActive s2 e2 (\t -> juxtapose v (d1 t) (d2 t))
-          )
-          a2
-      )
-      a1
-
--- instance Alignable a => Alignable (Active a) where
---   alignBy v d a = alignBy v d <$> a

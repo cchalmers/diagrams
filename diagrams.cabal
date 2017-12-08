@@ -53,7 +53,7 @@ library
     exceptions,
     transformers,
     constraints,
-    active,
+    active >= 0.3 && < 0.4,
     intervals,
     vector,
     linear,
