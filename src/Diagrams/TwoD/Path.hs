@@ -1,10 +1,10 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -23,37 +23,20 @@ module Diagrams.TwoD.Path
   , fillRule, _fillRule
   -- , StrokeOpts(..), vertexNames, queryFillRule
 
-    -- * Clipping
-
-  -- , Clip(..), _Clip, _clip
-  -- , clipBy, clipTo, clipped
-
   ) where
 
 
-import Control.Lens hiding (transform)
-import Data.Semigroup
-import Data.Default.Class
-import Data.Typeable
-import qualified Data.Foldable as F
+import           Control.Lens        hiding (transform)
+import           Data.Default.Class
+import           Data.Semigroup
+import           Data.Typeable
 
-import Geometry.TwoD.Path
-import Geometry.TwoD.Types
-import Geometry.Path
-import Geometry.Transform
--- import Geometry.Envelope
--- import Geometry.Trace
--- import Geometry.TrailLike
-import Geometry.Trail
-import Geometry.Query
-import Geometry.Space
--- import Geometry.Located
--- import Geometry.Points
--- import Linear ((^*))
+import           Geometry.Path
+import           Geometry.Space
+import           Geometry.TwoD.Path
+import           Geometry.TwoD.Types
 
--- import Linear.Affine (Point)
-
-import Diagrams.Types
+import           Diagrams.Types
 
 -- | Enumeration of algorithms or \"rules\" for determining which
 --   points lie in the interior of a (possibly self-intersecting)

@@ -11,6 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -83,7 +84,6 @@ module Diagrams.Types.Tree
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
 #endif
--- import           Control.DeepSeq
 import           Data.Foldable             as F (foldMap)
 import           Data.Monoid.Action
 import           Data.Monoid.WithSemigroup
@@ -927,11 +927,11 @@ downs f (NE t0)   = go mempty t0 where
 -- modifications are ignored
 matchingU :: (Action d u, Monoid d) => (u -> Bool) -> Traversal' (IDUAL i d u m a l) (IDUAL i d u m a l)
 matchingU _ _ EmptyDUAL  = pure EmptyDUAL
-matchingU pred f (NE t0) = NE <$> go mempty t0 where
+matchingU p f (NE t0) = NE <$> go mempty t0 where
 
   go !d = \case
     lef@(Leaf u l)
-      | pred (act d u)   -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
+      | p (act d u)   -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
                               NE t      -> t
                               EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
       | otherwise        -> pure lef
@@ -950,20 +950,20 @@ matchingU pred f (NE t0) = NE <$> go mempty t0 where
 
 tapeMatches :: (Monoid d, Action d u) => (u -> Bool) -> IDUAL i d u m a l -> [Tape]
 tapeMatches _ EmptyDUAL = []
-tapeMatches pred (NE t0) = go mempty startTape t0 where
+tapeMatches p (NE t0) = go mempty startTape t0 where
   go !d tp = \case
     Leaf u _
-      | pred (act d u)   -> [tp]
-      | otherwise        -> []
+      | p (act d u)     -> [tp]
+      | otherwise       -> []
     Up u
-      | pred (act d u)   -> [tp]
-      | otherwise        -> []
-    UpMod _ _ t          -> go d (tp & nannots +~ 1) t
+      | p (act d u)     -> [tp]
+      | otherwise       -> []
+    UpMod _ _ t         -> go d (tp & nannots +~ 1) t
     Label _ _ EmptyDUAL -> []
     Label _ _ (NE t)    -> go d tp t
-    Down _ d' t          -> go (d `mappend` d') tp t
-    Annot _ _ t          -> go d (tp & nannots +~ 1) t
-    Concat _ ts          -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
+    Down _ d' t         -> go (d `mappend` d') tp t
+    Annot _ _ t         -> go d (tp & nannots +~ 1) t
+    Concat _ ts         -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
 {-# INLINE tapeMatches #-}
 
 -- -- Debugging -----------------------------------------------------------

@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Combinators
@@ -31,15 +32,15 @@ module Diagrams.Combinators
   , cat, sep, sepEven
   ) where
 
-import Control.Lens hiding (beside)
-import Data.Monoid.WithSemigroup
+import           Control.Lens                       hiding (beside)
+import           Data.Monoid.WithSemigroup
 
-import Geometry
-import Linear.Metric
-import Linear (V3)
-import Linear.Vector ((*^))
+import           Geometry
+import           Linear                             (V3)
+import           Linear.Metric
+import           Linear.Vector                      ((*^))
 
-import Diagrams.Types
+import           Diagrams.Types
 import qualified Numeric.Interval.NonEmpty.Internal as I
 
 ------------------------------------------------------------

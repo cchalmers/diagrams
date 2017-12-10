@@ -1,13 +1,13 @@
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
@@ -95,19 +95,19 @@ module Diagrams.Attributes (
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
 #endif
-import           Control.Lens          hiding (none, over)
+import           Control.Lens         hiding (none, over)
+import           Data.Coerce
 import           Data.Colour
-import           Data.Colour.RGBSpace  (RGB (..))
-import           Data.Colour.SRGB      (toSRGB)
+import           Data.Colour.RGBSpace (RGB (..))
+import           Data.Colour.SRGB     (toSRGB)
 import           Data.Default.Class
 import           Data.Distributive
 import           Data.Semigroup
 import           Data.Typeable
-import           Data.Coerce
 
-import Geometry.Space
+import           Geometry.Space
 
-import Diagrams.Types
+import           Diagrams.Types
 
 ------------------------------------------------------------------------
 -- Standard measures

@@ -103,38 +103,34 @@ module Diagrams.Types
 
 import           Control.Lens
 import           Data.Coerce
+import           Data.Monoid.Coproduct.Strict
+import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
 import           Data.Typeable
 
-import           Data.Monoid.Coproduct.Strict
--- import           Data.Monoid.Deletable
-import           Data.Monoid.WithSemigroup
-
--- import           Geometry.Align
 import           Geometry.Envelope
 import           Geometry.HasOrigin
 import           Geometry.Juxtapose
+import           Geometry.Path                (Path, toPath)
 import           Geometry.Points
 import           Geometry.Query
+import           Geometry.Segment             (Crossings)
 import           Geometry.Space
-import           Geometry.Trace
-import           Geometry.Transform
 import           Geometry.ThreeD.Shapes
-
-import Geometry.Trail (FromTrail(..))
-import Geometry.Segment (Crossings)
-import Geometry.Path (Path, toPath)
+import           Geometry.Trace
+import           Geometry.Trail               (FromTrail (..))
+import           Geometry.Transform
 
 import           Diagrams.Types.Annotations
 import           Diagrams.Types.Measure
 import           Diagrams.Types.Names
 import           Diagrams.Types.Style
-import qualified Diagrams.Types.Tree as T
+import qualified Diagrams.Types.Tree          as T
 
-import           Linear.Vector
 import           Linear.Metric
-import           Linear.V2 (V2)
-import           Linear.V3 (V3)
+import           Linear.V2                    (V2)
+import           Linear.V3                    (V3)
+import           Linear.Vector
 
 -- | Class of numbers that are 'RealFloat' and 'Typeable'. This class is used to
 --   shorten type constraints.

@@ -33,34 +33,22 @@ module Diagrams.TwoD.Model
   , showLabels
   ) where
 
--- import           Control.Arrow            (second)
-import           Control.Lens hiding ((#), none)
--- import           Data.Colour              (Colour)
+import           Control.Lens              hiding (none, ( # ))
 import           Data.Colour.Names
 import           Data.Default.Class
-import           Data.List                (intercalate)
--- import qualified Data.Map                 as M
--- import           Data.Maybe               (catMaybes)
-import Data.Foldable
+import           Data.Foldable
+import           Data.List                 (intercalate)
 import           Data.Semigroup
-import Geometry
-
-import           Diagrams.Attributes
-import           Diagrams.Combinators     (atPoints)
--- import           Diagrams.CubicSpline
-import           Diagrams.Types
--- import           Diagrams.TwoD.Path
-import           Diagrams.TwoD.Attributes
-import           Data.Monoid.WithSemigroup
--- import           Diagrams.TwoD.Path
-import           Diagrams.TwoD.Text
--- import           Diagrams.TwoD.Transform  (rotateBy)
--- import           Diagrams.TwoD.Types
--- import           Diagrams.TwoD.Vector     (unitX)
-import           Diagrams.Util
-
--- import           Linear.Affine
 import           Linear.Vector
+
+import           Data.Monoid.WithSemigroup
+import           Diagrams.Attributes
+import           Diagrams.Combinators      (atPoints)
+import           Diagrams.TwoD.Attributes
+import           Diagrams.TwoD.Text
+import           Diagrams.Types
+import           Diagrams.Util
+import           Geometry
 
 ------------------------------------------------------------------------
 -- Marking the origin

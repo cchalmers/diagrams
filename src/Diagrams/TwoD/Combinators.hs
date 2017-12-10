@@ -37,44 +37,19 @@ module Diagrams.TwoD.Combinators
 
   ) where
 
-import           Control.Lens             ((&), (.~))
--- import           Data.Default.Class
+import           Control.Lens              ((&), (.~))
+import           Data.Colour
+import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
+import           Linear.Vector
 
-import Data.Monoid.WithSemigroup
+import           Geometry
 
-import Geometry
-import Diagrams.Combinators
-import Linear.Vector
--- import           Geometry.Space
--- -- import           Geometry.Transform
-
--- -- import           Geometry.Attributes      (lwO)
--- -- import           Geometry.BoundingBox
--- import           Geometry.Combinators
--- -- import           Geometry.Path
--- -- import           Geometry.Segment
--- import Geometry.HasOrigin
--- -- import           Geometry.FromTrail
--- -- import           Geometry.TwoD.Align
--- import           Geometry.Juxtapose
--- -- import           Geometry.TwoD.Attributes (fc)
--- -- import           Geometry.TwoD.Path       ()
--- -- import           Geometry.TwoD.Shapes
--- -- import           Geometry.TwoD.Transform  (scaleX, scaleY)
--- import           Geometry.TwoD.Types
--- import           Geometry.TwoD.Vector
--- import           Geometry.Space
-import Diagrams.Types
-import Diagrams.Util
-import Diagrams.Attributes
-import Diagrams.TwoD.Attributes
--- import           Geometry.Util            (( # ))
-
--- import           Linear.Affine
--- import           Linear.Metric
-import Data.Colour
--- import           Linear.Vector
+import           Diagrams.Attributes
+import           Diagrams.Combinators
+import           Diagrams.TwoD.Attributes
+import           Diagrams.Types
+import           Diagrams.Util
 
 -- | @strutR2 v@ is a two-dimensional diagram which produces no
 --   output, but with respect to alignment, envelope, /and trace/ acts
