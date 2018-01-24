@@ -27,6 +27,7 @@ library
     Diagrams.Types.Style
     Diagrams.Types
     Diagrams.Util
+    Diagrams.Measured
     Diagrams.Backend.CmdLine
     Diagrams.Backend
     Diagrams.TwoD.Attributes

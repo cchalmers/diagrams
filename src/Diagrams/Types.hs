@@ -47,7 +47,7 @@ module Diagrams.Types
 
     -- * Operations on diagrams
     -- ** Creating diagrams
-  , primQD, mkQD, mkQD', pointDiagram
+  , primQD, mkQD, mkQD', mkQDU, pointDiagram
 
     -- * Path primitive
   , strokePath, strokePathCrossings
@@ -62,6 +62,8 @@ module Diagrams.Types
   , localize
   , styles
   , leafs
+  , releaf
+  , down
 
     -- *** Replaceing up annotations
   , modEnvelope
@@ -78,6 +80,7 @@ module Diagrams.Types
   , modSub
   , subLocation
   , allSubs
+  , findSubs
 
     -- * Subdiagram maps
   -- , SubMap
@@ -239,6 +242,12 @@ upWith :: Monoid m => (UpAnnots v n m -> UpAnnots v n m) -> QDiagram v n m
 upWith f = upDiagram (f emptyUp)
 {-# INLINE upWith #-}
 
+down
+  :: forall v n m
+  . (Traversable v, Additive v, Floating n)
+    => DownAnnots v n -> QDiagram v n m -> QDiagram v n m
+down = coerce (T.down :: DownAnnots v n -> QDT v n m -> QDT v n m)
+
 -- | Create a \"point diagram\", which has no content, no trace, an
 --   empty query, and a point envelope.
 pointDiagram
@@ -284,6 +293,20 @@ leafs
 leafs = _Wrapped' . T.leafs . _Unwrapped
 {-# INLINE leafs #-}
 
+releaf
+  :: forall v n m. (HasLinearMap v, OrderedField n)
+  => (DownAnnots v n -> UpAnnots v n m -> QDiaLeaf v n m -> QDiagram v n m)
+  -> QDiagram v n m
+  -> QDiagram v n m
+releaf = coerce (T.releaf :: ((DownAnnots v n -> UpAnnots v n m  -> QDiaLeaf v n m -> QDT v n m) -> QDT v n m -> QDT v n m))
+{-# INLINE releaf #-}
+
+-- | Find all SubDiagrams that match the given name.
+findSubs
+  :: (IsName nm, HasLinearMap v, OrderedField n, Monoid' m)
+  => nm -> QDiagram v n m -> [SubDiagram v n m]
+findSubs (toName -> Name nm) (QD t) = coerce (T.findSubs nm t)
+
 -- | Get a list of names of subdiagrams and their locations.
 -- names :: (Metric v, HasLinearMap v, Typeable n, Semigroup m, OrderedField n)
 --       => QDiagram v n m -> [(Name, [Point v n])]
@@ -323,8 +346,11 @@ mkQD'
   -> Trace v n
   -> Query v n m
   -> QDiagram v n m
-mkQD' l e t q = QD $ T.leaf (UpAnnots e t q) l
+mkQD' l e t q = mkQDU l (UpAnnots e t q)
 {-# INLINE mkQD' #-}
+
+mkQDU :: QDiaLeaf v n m -> UpAnnots v n m -> QDiagram v n m
+mkQDU l u = QD $ T.leaf u l
 
 ------------------------------------------------------------
 -- Instances

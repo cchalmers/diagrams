@@ -60,6 +60,7 @@ module Diagrams.Types.Tree
   , sub
   , subPeeks
   , allSubs
+  , findSubs
 
     -- * Submap
   -- , SubMap
@@ -67,6 +68,7 @@ module Diagrams.Types.Tree
   -- , lookupSub
   , traverseSub
   , leafs
+  , releaf
   , tapeMatches
   , matchingU
   -- , ixDUAL
@@ -236,13 +238,10 @@ combineMaps i1 l1 i2 l2 =
 -- | Non-Empty DUAL-tree. u annotations are included so parts of the
 --   tree can be edited and the u annotations can be rebuilt properly.
 --   The tree is non-empty in the sence it always has at least a @u@
---   annotation. It doesn't not have to contain any leafs.
+--   annotation. It does not have to contain any leafs.
 --
 --   Invarients:
 --     - The 'Seq' in 'Concat' has at least two elements
---     - The @u@ annotations for Down, Annot and Concat are only caches,
---       they should be equal to the product of the up annotations below
---       them
 --     - There should be no observable difference (other than
 --       performance) from having the down annotation "pushed".
 data NE i d u m a l
@@ -751,6 +750,16 @@ allTapes (Labels (HM.toList -> tis0)) = go mempty tis0 where
           f (Just is) = Just $ i : is
   go its []           = its
 
+-- | Find subdiagrams that match all the names.
+findSubs
+  :: (Hashable i, Eq i, Action d u, Semigroup d, Monoid d, Monoid' u)
+  => [i] -> IDUAL i d u m a l -> [SubIDUAL i d u m a l]
+findSubs (i0:is) t = map (mkSubDUAL t) (toList ts) where
+  ts = case getI t of
+    Labels m -> foldr (\i s -> Set.intersection s (m ^. ix i)) (m ^. ix i0) is
+    NoLabels -> Set.empty
+findSubs [] _ = []
+
 traverseSub
   :: (Hashable i, Eq i, Action d u, Semigroup d, Monoid d, Semigroup u)
   => [i] -> Traversal' (IDUAL i d u m a l) (IDUAL i d u m a l)
@@ -903,6 +912,27 @@ leafs f (NE t0)   = NE <$> go mempty t0 where
     Concat i ts          -> Concat i <$> traverse (go d) ts
 {-# INLINE leafs #-}
 
+releaf
+  :: forall i d u m a l l'. Monoid d
+  => (d -> u -> l -> IDUAL i d u m a l') -> IDUAL i d u m a l -> IDUAL i d u m a l'
+releaf _ EmptyDUAL = EmptyDUAL
+releaf f (NE t0)   = NE (go mempty t0) where
+  go :: d -> NE i d u m a l -> NE i d u m a l'
+  go !d = \case
+    Leaf u l             -> case f d u l of
+                              NE t      -> t
+                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+    Up   u               -> Up u
+
+    -- what to do about up modifications?
+    UpMod i fu t         -> UpMod i fu (go d t)
+
+    Label i md EmptyDUAL -> Label i (Just d `mappend` md) EmptyDUAL
+    Label i md (NE t)    -> Label i (Just d `mappend` md) . NE $ go d t
+    Down _ d' t          -> go (d `mappend` d') t
+    Annot i a t          -> Annot i a (go d t)
+    Concat i ts          -> Concat i $ fmap (go d) ts
+{-# INLINE releaf #-}
 
 -- Traversing downs ----------------------------------------------------
 
