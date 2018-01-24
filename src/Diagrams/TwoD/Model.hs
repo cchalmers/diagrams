@@ -47,6 +47,7 @@ import           Diagrams.Combinators      (atPoints)
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Text
 import           Diagrams.Types
+import           Diagrams.Measured
 import           Diagrams.Util
 import           Geometry
 
@@ -82,14 +83,12 @@ showOrigin = showOrigin' def
 showOrigin'
   :: Monoid' m
   => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
-showOrigin' (OriginOpts sty m) d = o <> d
+showOrigin' (OriginOpts sty m) d = measuredDiagram o <> d
   where
-    o = strokePath (circle sz)
+    o = m <&> \sz -> strokePath (circle sz)
           # applyStyle sty
           # lw none
           # fmap (const mempty)
-    -- XXX Completely wrong. We need measured diagrams for this.
-    sz = fromMeasured 0.1 0.1 m
 
 ------------------------------------------------------------------------
 -- Approximating the envelope
