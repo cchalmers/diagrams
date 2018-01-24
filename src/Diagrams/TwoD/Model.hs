@@ -20,8 +20,8 @@ module Diagrams.TwoD.Model
   , OriginOpts(..), originSize -- , oMinSize
 
     -- * Showing an approximation of the envelope
-  -- , showEnvelope
-  -- , showEnvelope'
+  , showEnvelope
+  , showEnvelope'
   , EnvelopeOpts(..), envelopePoints, envelopeSmoothing
 
     -- * Showing an approximation of the trace
@@ -40,16 +40,20 @@ import           Data.Foldable
 import           Data.List                 (intercalate)
 import           Data.Semigroup
 import           Linear.Vector
+import           Numeric.Interval.NonEmpty.Internal
+
 
 import           Data.Monoid.WithSemigroup
 import           Diagrams.Attributes
 import           Diagrams.Combinators      (atPoints)
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Text
+import           Diagrams.TwoD.Path
 import           Diagrams.Types
 import           Diagrams.Measured
 import           Diagrams.Util
 import           Geometry
+import           Geometry.CubicSpline
 
 ------------------------------------------------------------------------
 -- Marking the origin
@@ -101,7 +105,7 @@ type instance V EnvelopeOpts = V2
 type instance N EnvelopeOpts = Double
 
 instance Default EnvelopeOpts where
-  def = EnvelopeOpts (mempty & lc red & lw medium) True 32
+  def = EnvelopeOpts (mempty & lc red & lw medium) True 64
 
 instance ApplyStyle EnvelopeOpts where
   applyStyle s = style <>~ s
@@ -121,21 +125,34 @@ envelopePoints f (EnvelopeOpts sty s n) = EnvelopeOpts sty s <$> f n
 envelopeSmoothing :: Lens' EnvelopeOpts Bool
 envelopeSmoothing f (EnvelopeOpts sty s n) =  f s <&> \s' -> EnvelopeOpts sty s' n
 
+strokeLocLoop :: Located (Loop V2 Double) -> Diagram V2
+strokeLocLoop = stroke
+
+sampleVectors :: Int -> [V2 Double]
+sampleVectors n = map (\i -> angleV ((fromIntegral i / n') @@ turn)) [0..n - 1]
+  where
+    n'  = fromIntegral (2*n)
+
 -- | Mark the envelope with an approximating cubic spline with control
 --   over the color, line width and number of points.
--- showEnvelope' :: EnvelopeOpts -> Diagram V2 -> Diagram V2
--- showEnvelope' opts d = fromVertices pts # applyStyle (opts^.style) <> d
---   where
---     pts = catMaybes [envelopePMay v d | v <- map (`rotateBy` unitX) [0,inc..top]]
---     -- w   = opts ^. eLineWidth
---     inc = 1 / fromIntegral (opts^.envelopePoints)
---     top = 1 - inc
-
+showEnvelope' :: EnvelopeOpts -> Diagram V2 -> Diagram V2
+showEnvelope' opts d = draw pts # applyStyle (opts^.style) <> d
+  where
+    draw
+      | opts^.envelopeSmoothing = cubicSpline True
+      | otherwise               = strokeLocLoop . fromVertices
+    pts = case getEnvelope d of
+            Envelope f ->
+              let g v = let I a b = f v
+                        in  (P (a *^ v), P (b *^ v))
+                  ps2 = map g $ sampleVectors (opts^.envelopePoints)
+               in  map fst ps2 ++ map snd ps2
+            EmptyEnvelope -> []
 
 -- | Mark the envelope with an approximating cubic spline
 --   using 32 points, medium line width and red line color.
--- showEnvelope :: Diagram V2 -> Diagram V2
--- showEnvelope = showEnvelope' def
+showEnvelope :: Diagram V2 -> Diagram V2
+showEnvelope = showEnvelope' def
 
 ------------------------------------------------------------------------
 -- Approximating the trace
@@ -220,3 +237,4 @@ showLabels d = mkLabels text d <> d
 -- | Display a name without the \"toName\" prefix for singular names.
 prettyName :: Name -> String
 prettyName (Name ns) = intercalate " .> " $ map (\(AName n) -> show n) ns
+
