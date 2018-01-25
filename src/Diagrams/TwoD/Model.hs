@@ -27,7 +27,7 @@ module Diagrams.TwoD.Model
     -- * Showing an approximation of the trace
   , showTrace
   , showTrace'
-  , TraceOpts(..), tracePoints, traceSmoothing
+  , TraceOpts(..), traceNumPoints, traceSmoothing
 
     -- * Showing labels of all named subdiagrams
   , showLabels
@@ -36,7 +36,6 @@ module Diagrams.TwoD.Model
 import           Control.Lens              hiding (none, ( # ))
 import           Data.Colour.Names
 import           Data.Default.Class
-import           Data.Foldable
 import           Data.List                 (intercalate)
 import           Data.Semigroup
 import           Linear.Vector
@@ -45,7 +44,6 @@ import           Numeric.Interval.NonEmpty.Internal
 
 import           Data.Monoid.WithSemigroup
 import           Diagrams.Attributes
-import           Diagrams.Combinators      (atPoints)
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Text
 import           Diagrams.TwoD.Path
@@ -158,62 +156,56 @@ showEnvelope = showEnvelope' def
 -- Approximating the trace
 ------------------------------------------------------------------------
 
--- | Options for displaying the trace appromiation.
--- data TraceOpts n = TraceOpts
---   { _tColor   :: Colour Double
---   , _tScale   :: n
---   , _tMinSize :: n
---   , _tPoints  :: Int
---   }
-
--- makeLenses ''TraceOpts
-
 -- | Options for displaying the envelope approximation.
-data TraceOpts = TraceOpts (Style V2 Double) Bool Int
+data TraceOpts = TraceOpts (Style V2 Double) (Diagram V2) Bool Int
 
 type instance V TraceOpts = V2
 type instance N TraceOpts = Double
 
 instance Default TraceOpts where
-  def = TraceOpts (mempty & lc red & lw medium) True 32
+  def = TraceOpts defSty defMarker True 32
+    where
+      defSty = mempty & lc red & lw medium
+      defMarker = measuredDiagram (cross <$> normalized (1/80))
+      cross x = (mkP2 (-x) (-x) ~~ mkP2 x x) <> (mkP2 (-x) x ~~ mkP2 x (-x))
+
 
 instance ApplyStyle TraceOpts where
   applyStyle s = style <>~ s
 
 instance HasStyle TraceOpts where
-  style f (TraceOpts sty s sz) = f sty <&> \sty' -> TraceOpts sty' s sz
+  style f (TraceOpts sty m s n) = f sty <&> \sty' -> TraceOpts sty' m s n
 
--- | Number of points used to estimate the trace.
+-- | Number of traces calculated used to visualise the trace.
 --
 --   Default is @64@.
-tracePoints :: Lens' TraceOpts Int
-tracePoints f (TraceOpts sty s n) = TraceOpts sty s <$> f n
+traceNumPoints :: Lens' TraceOpts Int
+traceNumPoints f (TraceOpts sty m s n) = TraceOpts sty m s <$> f n
+
+-- | The size of the
+--
+--   Default is a cross with length @'normalized' (1/40)@
+traceMarker :: Lens' TraceOpts (Diagram V2)
+traceMarker f (TraceOpts sty m s n) =  f m <&> \m' -> TraceOpts sty m' s n
 
 -- | Should the resulting trace be smoothed.
 --
 --   Default is 'True'.
 traceSmoothing :: Lens' TraceOpts Bool
-traceSmoothing f (TraceOpts sty s n) =  f s <&> \s' -> TraceOpts sty s' n
+traceSmoothing f (TraceOpts sty sz s n) = f s <&> \s' -> TraceOpts sty sz s' n
 
--- instance Floating n => Default (TraceOpts n) where
---   def = TraceOpts red (1/100) 0.001 64
 
 -- | Mark the trace of a diagram, with control over colour and scale
 -- of marker dot and the number of points on the trace.
 showTrace' :: TraceOpts -> Diagram V2 -> Diagram V2
-showTrace' opts d =  atPoints ps (repeat pt) <> d
+showTrace' opts d = foldMap moveTo ps m <> d
   where
-    ps = concatMap p ts
-    ts = zip rs vs
-    p (r, v) = [origin .+^ (s *^ v) | s <- r]
-    vs = map (`rotateBy` unitX) [0, inc..top]
-    -- rs = [getSortedList $ (appTrace . getTrace) d origin v | v <- vs]
-    rs = map (toList . (appTrace . getTrace) d origin) vs
-    pt = circle sz # applyStyle (opts^.style)
-    V2 w h = undefined -- opts^.tScale *^ size d
-    sz     = maximum [w, h] -- , opts^.tMinSize]
-    inc = 1 / fromIntegral (opts^.tracePoints)
-    top = 1 - inc
+    -- another possibility is to trace along a regular grid formed from
+    -- the bounding box
+    vs  = sampleVectors (opts^.traceNumPoints)
+    f v = fmap (\n -> P (n *^ v)) $ appTrace (getTrace d) origin v
+    ps  = foldMap f vs
+    m   = opts^.traceMarker & applyStyle (opts^.style)
 
 -- | Mark the trace of a diagram by placing 64 red dots 1/100th its size
 --   along the trace.
