@@ -282,9 +282,9 @@ instance WithOutcome a => WithOutcome [(String, a)] where
     -- possible with this setup.
   withOutcome f (mname, args) ds =
     case mname of
-      Just name -> case lookup name ds of
+      Just nm -> case lookup nm ds of
         Just r  -> withOutcome f args r
-        Nothing -> putStrLn $ "Option \"" ++ name ++ "\" not found. Choose from:\n" ++ dsList
+        Nothing -> putStrLn $ "Option \"" ++ nm ++ "\" not found. Choose from:\n" ++ dsList
       Nothing -> putStrLn $ "Pick an option with --name. Choose from:\n" ++ dsList
     where
     dsList = unlines (map (("  "++) . fst) ds)
