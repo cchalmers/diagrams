@@ -34,6 +34,9 @@ module Diagrams.Types.Names
    -- ** Qualifiable
   , Qualifiable(..)
 
+   -- ** HasName
+  , HasName(..)
+
   ) where
 
 import           Control.Lens            hiding ((.>))
@@ -175,9 +178,9 @@ a1 .> a2 = toName a1 <> toName a2
 
 -- | Instances of 'Qualifiable' are things which can be qualified by
 --   prefixing them with a name.
-class Qualifiable q where
+class Qualifiable a where
   -- | Qualify with the given name.
-  (.>>) :: IsName a => a -> q -> q
+  (.>>) :: IsName nm => nm -> a -> a
 
 -- | Of course, names can be qualified using @(.>)@.
 instance Qualifiable Name where
@@ -209,3 +212,13 @@ instance Qualifiable a => Qualifiable (Measured n a) where
 
 infixr 5 .>>
 infixr 5 .>
+
+-- | Things that have a single name.
+class Qualifiable a => HasName a where
+  -- | The lens onto the name of something.
+  name :: Lens' a Name
+
+instance HasName Name where
+  name = id
+  {-# INLINE name #-}
+
