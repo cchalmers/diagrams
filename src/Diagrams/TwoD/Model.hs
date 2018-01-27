@@ -17,17 +17,22 @@ module Diagrams.TwoD.Model
   ( -- * Showing the local origin
     showOrigin
   , showOrigin'
-  , OriginOpts(..), originSize -- , oMinSize
+  , OriginOpts(..)
+  , originSize
 
     -- * Showing an approximation of the envelope
   , showEnvelope
   , showEnvelope'
-  , EnvelopeOpts(..), envelopePoints, envelopeSmoothing
+  , EnvelopeOpts(..)
+  , envelopeNumPoints
+  , envelopeSmoothing
 
     -- * Showing an approximation of the trace
   , showTrace
   , showTrace'
-  , TraceOpts(..), traceNumPoints, traceSmoothing
+  , TraceOpts(..)
+  , traceNumPoints
+  , traceMarker
 
     -- * Showing labels of all named subdiagrams
   , showLabels
@@ -58,37 +63,53 @@ import           Geometry.CubicSpline
 ------------------------------------------------------------------------
 
 -- | Options for displaying the origin.
-data OriginOpts = OriginOpts (Style V2 Double) (Measure Double)
+data OriginOpts = OriginOpts
+  { _originStyle :: Style V2 Double
+  , _originName  :: Name
+  , _originSize  :: Measure Double
+  }
+
+makeLensesWith (lensRules & generateSignatures .~ False) ''OriginOpts
 
 type instance V OriginOpts = V2
 type instance N OriginOpts = Double
 
+originStyle :: Lens' OriginOpts (Style V2 Double)
+originName  :: Lens' OriginOpts Name
+
 -- | The size of the displayed origin.
 originSize :: Lens' OriginOpts (Measure Double)
-originSize f (OriginOpts sty sz) = OriginOpts sty <$> f sz
 
 instance Default OriginOpts where
-  def = OriginOpts (mempty # fc red # lw none) (normalized $ 1/50)
+  def = OriginOpts
+    { _originStyle = mempty # fc red # lw none
+    , _originName  = mempty
+    , _originSize  = normalized $ 1/50
+    }
 
 instance ApplyStyle OriginOpts where
   applyStyle s = style <>~ s
 
 instance HasStyle OriginOpts where
-  style f (OriginOpts sty sz) = f sty <&> \sty' -> OriginOpts sty' sz
+  style = originStyle
+
+instance Qualifiable OriginOpts
+instance HasName OriginOpts where
+  name = originName
 
 -- | Mark the origin of a diagram by placing a red dot 1/50th its size.
-showOrigin :: Monoid' m => QDiagram V2 Double m -> QDiagram V2 Double m
+showOrigin :: Monoid m => QDiagram V2 Double m -> QDiagram V2 Double m
 showOrigin = showOrigin' def
 
 -- | Mark the origin of a diagram, with control over colour and scale
 -- of marker dot.
 showOrigin'
-  :: Monoid' m
+  :: Monoid m
   => OriginOpts -> QDiagram V2 Double m -> QDiagram V2 Double m
-showOrigin' (OriginOpts sty m) d = measuredDiagram o <> d
+showOrigin' opts d = (opts^.name .>> measuredDiagram o) <> d
   where
-    o = m <&> \sz -> strokePath (circle sz)
-          # applyStyle sty
+    o = opts^.originSize <&> \sz -> strokePath (circle sz)
+          # applyStyle (opts^.style)
           # lw none
           # fmap (const mempty)
 
@@ -97,35 +118,53 @@ showOrigin' (OriginOpts sty m) d = measuredDiagram o <> d
 ------------------------------------------------------------------------
 
 -- | Options for displaying the envelope approximation.
-data EnvelopeOpts = EnvelopeOpts (Style V2 Double) Bool Int
+data EnvelopeOpts = EnvelopeOpts
+  { _envStyle          :: Style V2 Double
+  , _envName           :: Name
+  , _envelopeSmoothing :: Bool
+  , _envelopeNumPoints :: Int
+  }
 
-type instance V EnvelopeOpts = V2
-type instance N EnvelopeOpts = Double
+makeLensesWith (lensRules & generateSignatures .~ False) ''EnvelopeOpts
 
-instance Default EnvelopeOpts where
-  def = EnvelopeOpts (mempty & lc red & lw medium) True 64
-
-instance ApplyStyle EnvelopeOpts where
-  applyStyle s = style <>~ s
-
-instance HasStyle EnvelopeOpts where
-  style f (EnvelopeOpts sty s sz) = f sty <&> \sty' -> EnvelopeOpts sty' s sz
+envStyle :: Lens' EnvelopeOpts (Style V2 Double)
+envName  :: Lens' EnvelopeOpts Name
 
 -- | Number of points used to estimate the envelope.
 --
 --   Default is @32@.
-envelopePoints :: Lens' EnvelopeOpts Int
-envelopePoints f (EnvelopeOpts sty s n) = EnvelopeOpts sty s <$> f n
+envelopeNumPoints :: Lens' EnvelopeOpts Int
 
 -- | Should the resulting envelope be smoothed.
 --
 --   Default is 'True'.
 envelopeSmoothing :: Lens' EnvelopeOpts Bool
-envelopeSmoothing f (EnvelopeOpts sty s n) =  f s <&> \s' -> EnvelopeOpts sty s' n
+
+type instance V EnvelopeOpts = V2
+type instance N EnvelopeOpts = Double
+
+instance Default EnvelopeOpts where
+  def = EnvelopeOpts
+    { _envStyle = mempty & lc red & lw medium
+    , _envName  = mempty
+    , _envelopeSmoothing = True
+    , _envelopeNumPoints = 64
+    }
+
+instance ApplyStyle EnvelopeOpts where
+  applyStyle s = style <>~ s
+
+instance HasStyle EnvelopeOpts where
+  style = envStyle
+
+instance Qualifiable EnvelopeOpts
+instance HasName EnvelopeOpts where
+  name = envName
 
 strokeLocLoop :: Located (Loop V2 Double) -> Diagram V2
 strokeLocLoop = stroke
 
+-- Create N unit vectors, forming half the spokes of a wheel
 sampleVectors :: Int -> [V2 Double]
 sampleVectors n = map (\i -> angleV ((fromIntegral i / n') @@ turn)) [0..n - 1]
   where
@@ -134,7 +173,7 @@ sampleVectors n = map (\i -> angleV ((fromIntegral i / n') @@ turn)) [0..n - 1]
 -- | Mark the envelope with an approximating cubic spline with control
 --   over the color, line width and number of points.
 showEnvelope' :: EnvelopeOpts -> Diagram V2 -> Diagram V2
-showEnvelope' opts d = draw pts # applyStyle (opts^.style) <> d
+showEnvelope' opts d = (opts^.name .>> draw pts # applyStyle (opts^.style)) <> d
   where
     draw
       | opts^.envelopeSmoothing = cubicSpline True
@@ -143,7 +182,7 @@ showEnvelope' opts d = draw pts # applyStyle (opts^.style) <> d
             Envelope f ->
               let g v = let I a b = f v
                         in  (P (a *^ v), P (b *^ v))
-                  ps2 = map g $ sampleVectors (opts^.envelopePoints)
+                  ps2 = map g $ sampleVectors (opts^.envelopeNumPoints)
                in  map fst ps2 ++ map snd ps2
             EmptyEnvelope -> []
 
@@ -157,48 +196,57 @@ showEnvelope = showEnvelope' def
 ------------------------------------------------------------------------
 
 -- | Options for displaying the envelope approximation.
-data TraceOpts = TraceOpts (Style V2 Double) (Diagram V2) Bool Int
+data TraceOpts = TraceOpts
+  { _traceStyle     :: Style V2 Double
+  , _traceName      :: Name
+  , _traceMarker    :: Diagram V2
+  , _traceNumPoints :: Int
+  }
+
+makeLensesWith (lensRules & generateSignatures .~ False) ''TraceOpts
+
+traceStyle :: Lens' TraceOpts (Style V2 Double)
+traceName  :: Lens' TraceOpts Name
+
+-- | Number of traces calculated used to visualise the trace.
+--
+--   Default is @64@.
+traceNumPoints :: Lens' TraceOpts Int
+
+-- | The size of the
+--
+--   Default is a cross with length @'normalized' (1/40)@
+traceMarker :: Lens' TraceOpts (Diagram V2)
+
 
 type instance V TraceOpts = V2
 type instance N TraceOpts = Double
 
 instance Default TraceOpts where
-  def = TraceOpts defSty defMarker True 32
+  def = TraceOpts
+    { _traceStyle     = mempty & lc red & lw medium
+    , _traceName      = mempty
+    , _traceMarker    = measuredDiagram (cross <$> normalized (1/80))
+    , _traceNumPoints = 32
+    }
     where
-      defSty = mempty & lc red & lw medium
-      defMarker = measuredDiagram (cross <$> normalized (1/80))
-      cross x = (mkP2 (-x) (-x) ~~ mkP2 x x) <> (mkP2 (-x) x ~~ mkP2 x (-x))
+    cross x = (mkP2 (-x) (-x) ~~ mkP2 x x) <> (mkP2 (-x) x ~~ mkP2 x (-x))
 
 
 instance ApplyStyle TraceOpts where
   applyStyle s = style <>~ s
 
 instance HasStyle TraceOpts where
-  style f (TraceOpts sty m s n) = f sty <&> \sty' -> TraceOpts sty' m s n
+  style = traceStyle
 
--- | Number of traces calculated used to visualise the trace.
---
---   Default is @64@.
-traceNumPoints :: Lens' TraceOpts Int
-traceNumPoints f (TraceOpts sty m s n) = TraceOpts sty m s <$> f n
-
--- | The size of the
---
---   Default is a cross with length @'normalized' (1/40)@
-traceMarker :: Lens' TraceOpts (Diagram V2)
-traceMarker f (TraceOpts sty m s n) =  f m <&> \m' -> TraceOpts sty m' s n
-
--- | Should the resulting trace be smoothed.
---
---   Default is 'True'.
-traceSmoothing :: Lens' TraceOpts Bool
-traceSmoothing f (TraceOpts sty sz s n) = f s <&> \s' -> TraceOpts sty sz s' n
-
+instance Qualifiable TraceOpts
+instance HasName TraceOpts where
+  name = traceName
 
 -- | Mark the trace of a diagram, with control over colour and scale
 -- of marker dot and the number of points on the trace.
 showTrace' :: TraceOpts -> Diagram V2 -> Diagram V2
-showTrace' opts d = foldMap moveTo ps m <> d
+showTrace' opts d = (opts^.name .>> foldMap moveTo ps m) <> d
   where
     -- another possibility is to trace along a regular grid formed from
     -- the bounding box
