@@ -832,12 +832,65 @@ mkPretext
 mkPretext tape t = Pretext (\f -> ixDUAL tape f t)
 {-# INLINE mkPretext #-}
 
--- -- Traverse a route ----------------------------------------------------
+-- Traverse a route ----------------------------------------------------
 
--- | Traverse a rogue going to the lowest case in the tree.
+-- Traversing a route allow us to traverse multiple nodes in the tree in
+-- one pass while only visiting the nessesary parts of the tree.
+-- Consider the following tree:
+--
+--
+--                          /\
+--                         /  \
+--                         |   #b
+--                         |  annot
+--                         |   #c
+--                        /     \
+--                       /      /\
+--                      #a     #d #e
+--                      |      |  |
+--                      x      y  z
+--
+-- where x,y,z are the leafs, #a, #b, #c, #d, #e are the labels are
+-- annot is a static annotation. The route for traversing labels #a and
+-- #e would be:
+--
+--   Route []
+--     [ (0,Route [0] [])          -- #a
+--     , (1, Route []
+--             [(1, Route [0] [])] -- #e
+--       )
+--     ]
+--
+-- A more complicated happens when one traversal target is below
+-- another. For example targeting #c and #d would be:
+--
+--   Route []
+--     [ (1, Route [1]             -- #c
+--             [(0, Route [0] [])] -- #d
+--       )
+--     ]
+--
+--  This posses a problem for traversals because the Applicative
+--  constraint doesn't allow nested traversals (Monad is required for
+--  this), so we need to pick to traverse either #c or #d. The 'route'
+--  traversal function always picks the first target it sees and ignores
+--  any below that target. If you want to traverse the lowest target in
+--  a route, use 'routeBottoms' to keep only the bottom targets.
+
+-- | Select only the bottom targets of a route.
+routeBottoms :: Route -> Route
+routeBottoms = go where
+  go = \case
+    Route ts [] -> Route (lastTarget ts) []
+    Route _  rs -> Route [] (over (mapped._2) go rs)
+  lastTarget = \case
+    []   -> [] -- should this ever happen?
+    [a]  -> [a]
+    _:as -> lastTarget as
+
+-- | Traverse a route going to the lowest case in the tree.
 route
   :: forall f i d u m a l. (Hashable i, Eq i, Action d u, Applicative f, Semigroup d, Monoid d, Semigroup u)
-  -- => DUALIndex i d u a l
   => Route
   -> (IDUAL i d u m a l -> f (IDUAL i d u m a l))
   -> IDUAL i d u m a l
@@ -845,19 +898,18 @@ route
 route (Route [] []) _ EmptyDUAL    = pure EmptyDUAL
 route _  _ EmptyDUAL = error "tape used on EmptyDUAL"
 route r0 f (NE t0)   = go mempty r0 t0 where
-  -- XXX Need two versions of go, one that hasn't seen a d annotation
-  -- yet and one that has one. This would give us the nicer Semigroup
-  -- constraint on d and prevent accumulating unnecessary empty d
-  -- annotations.
-  -- follow the tape path to the target subtree
+  -- strategy:
+  -- In this case we are searching for the first target seen in a route.
+  -- For each Annot or Upmod passed we subtract 1 from the targets in
+  -- the rogue. When we reach @Route (0:_) _@ this is the target to
+  -- apply f to. When the route branches at a Concat, 'go' is applied to
+  -- each targeted branch.
 
-  -- In this varient we only traverse the last occurence of the route.
-  -- This means we ignore the (Route (0:ns) is) case.
   go :: d -> Route -> NE i d u m a l -> f (IDUAL i d u m a l)
   go d (Route [] [])     = pure . down d . NE
-  -- go d (Route (0:ns) is) = \t -> f =<< go d (Route ns is) t
-  go d (Route [0] _) = f . down d . NE
-  go d (Route (0:ns) is) = go d (Route ns is)
+
+  -- the target list is non-empty so the target is before a Concat
+  go d (Route (0:_) _) = f . down d . NE
   go d r@(Route ns@(_:_) is) = \case
     Down _ d' t -> go (d `mappend` d') r t
     UpMod _ m t -> modU m <$> go d r' t
@@ -866,6 +918,8 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     t           -> error $ "rotue: reached " ++ neShow t ++ " with "
                          ++ show (head ns) ++ " expected annotations"
     where r' = Route (map (subtract 1) ns) is
+
+  -- the target list is empty so the target is after a concat
   go d r@(Route [] is) = \case
     Down _ d' t -> go (d `mappend` d') r t
     UpMod _ m t -> modU m <$> go d r t
@@ -873,21 +927,30 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     Concat _ s  -> go2 d is s
     t -> error $ "route: reached " ++ neShow t ++ " before following path"
 
+  -- handle the branching of routes at a Concat
   go2 :: d -> [(Int, Route)] -> Seq (NE i d u m a l) -> f (IDUAL i d u m a l)
   go2 d ((i,r):is) ts
     | (sL, t :< sR) <- Seq.splitAt i ts =
         (\t' sR' -> down d (rebuildSeq sL) <> t' <> sR')
           <$> go d r t
           <*> go2 d (is & each . _1 -~ (i+1)) sR
-        -- t'  <- go d r t
-        -- sR' <- go2 d (is & each . _1 -~ (i+1)) sR
-        -- pure $ down d (rebuildSeq sL) <> t' <> sR'
-    -- | (sL, t :< sR) <- Seq.splitAt i ts = do
-    --     t'  <- go d r t
-    --     sR' <- go2 d (is & each . _1 -~ (i+1)) sR
-    --     pure $ idown d (rebuildSeq sL) <> t' <> sR'
     | otherwise = error "route: tried to index wrong part of concat"
   go2 d [] s = pure (down d (rebuildSeq s))
+
+-- -- | Extract all traces of some objects from the tree, including
+-- --   reference to its name in the labels map, returning the tree
+--
+-- XXX Need to think more about how to implement this
+-- extractAll
+--   :: forall f i d u m a l. (Hashable i, Eq i, Action d u, Applicative f, Semigroup d, Monoid d, Semigroup u)
+--   -- => DUALIndex i d u a l
+--   => Route
+--   -> (i -> Bool)
+--   -> IDUAL i d u m a l
+--   -> ([(Labels i, IDUAL i d u m a l)], IDUAL i d u m a l)
+-- extractAll (Route [] []) _ EmptyDUAL    = EmptyDUAL
+-- extractAll _  _ _ EmptyDUAL = error "non-empty tape used on EmptyDUAL"
+-- extractAll r0 p (NE t0)   = go mempty r0 t0 where
 
 -- All leafs -----------------------------------------------------------
 
