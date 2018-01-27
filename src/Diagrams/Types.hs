@@ -478,6 +478,7 @@ instance (Additive v, Traversable v, Floating n) => Transformable (QDiagram v n 
 --   {-# INLINE defaultBoundary #-}
 
 instance Qualifiable (QDiagram v n m) where
+  (toName -> Name [])  .>> d    = d
   (toName -> Name nms) .>> QD t = QD (T.labels nms t)
   {-# INLINE (.>>) #-}
 
