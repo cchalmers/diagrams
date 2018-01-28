@@ -912,7 +912,8 @@ routeBottoms = go where
     [a]  -> [a]
     _:as -> lastTarget as
 
--- | Traverse a route going to the lowest case in the tree.
+-- | Traverse a route. For routes with nested targets, this will apply
+--   the function to the first occurrence only.
 route
   :: forall f i d u m a l. (Hashable i, Eq i, Action d u, Applicative f, Semigroup d, Monoid d, Semigroup u)
   => Route
