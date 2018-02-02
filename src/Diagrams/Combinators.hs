@@ -146,7 +146,7 @@ strut v = upWith (upEnvelope .~ env)
 extrudeEnvelope
   :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
-extrudeEnvelope = deformEnvelope 0.5
+extrudeEnvelope = deformEnvelope 0.5 . dir
 {-# INLINEABLE [0] extrudeEnvelope #-}
 {-# SPECIALISE extrudeEnvelope :: V2 Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE extrudeEnvelope :: V3 Double -> Diagram V3 -> Diagram V3 #-}
@@ -161,7 +161,7 @@ extrudeEnvelope = deformEnvelope 0.5
 intrudeEnvelope
   :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
-intrudeEnvelope = deformEnvelope (-0.5)
+intrudeEnvelope = deformEnvelope (-0.5) . dir
 {-# INLINEABLE [0] intrudeEnvelope #-}
 {-# SPECIALISE intrudeEnvelope :: V2 Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE intrudeEnvelope :: V3 Double -> Diagram V3 -> Diagram V3 #-}
@@ -169,12 +169,12 @@ intrudeEnvelope = deformEnvelope (-0.5)
 -- Utility for extrudeEnvelope / intrudeEnvelope
 deformEnvelope
   :: (HasLinearMap v, OrderedField n)
-  => n -> v n -> QDiagram v n m -> QDiagram v n m
-deformEnvelope s v = modEnvelope (onEnvelope deformE)
+  => n -> Direction v n -> QDiagram v n m -> QDiagram v n m
+deformEnvelope s (Dir v) = modEnvelope (onEnvelope deformE)
   where
-    deformE f v'
-      | dp > 0    = shift (dp*s) (f v')
-      | otherwise = f v'
+    deformE f (Dir v')
+      | dp > 0    = shift (dp*s) (f (Dir v'))
+      | otherwise = f (Dir v')
       where dp = v' `dot` v
 {-# INLINE deformEnvelope #-}
 

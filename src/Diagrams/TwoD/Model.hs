@@ -180,7 +180,7 @@ showEnvelope' opts d = (opts^.name .>> draw pts # applyStyle (opts^.style)) <> d
       | otherwise               = strokeLocLoop . fromVertices
     pts = case getEnvelope d of
             Envelope f ->
-              let g v = let I a b = f v
+              let g v = let I a b = f (Dir v)
                         in  (P (a *^ v), P (b *^ v))
                   ps2 = map g $ sampleVectors (opts^.envelopeNumPoints)
                in  map fst ps2 ++ map snd ps2
