@@ -476,7 +476,7 @@ loopOptsParser = DiagramLoopOpts <$> switch loop <*> src <*> int where
     src  = optional . strOption $ mconcat [long "src", short 's', help "Source file to watch"]
     int  = option auto $ mconcat
         [ long "interval", short 'i', value 1, metavar "INT"
-        , help "When running in a loop, check for changes every i seconds."]
+        , help "When running in a loop, check for changes every i seconds (Windows only)."]
 
 -- | Similar to 'mainWith' but includes an additional @--loop@ option
 --   (see 'loopOptsParser') that will recompile the module each time the
@@ -501,7 +501,7 @@ defaultLoopRender opts = when (_loop opts) $ do
     Just path -> return path
     Nothing   -> fromMaybe (error nosrc) <$> findHsFile prog
       where
-        nosrc = "Unable to find Haskell source file.\n"
+        nosrc = "Unable to find Haskell source file for loop render.\n"
              ++ "Specify source file with '-s' or '--src'"
   srcPath' <- canonicalizePath srcPath
 
