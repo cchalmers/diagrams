@@ -129,11 +129,11 @@ defaultExecParser optsParser = do
 --   ourselves to things that make sense to parse from the command line.
 class Parseable a where
   -- | Default command line parser for the type.
-  parser :: Parser a
+  argRead :: ReadM a
 
-  default parser :: Read a => Parser a
+  default argRead :: Read a => ReadM a
   -- | The @default@ parser uses the 'Read' instance for that type.
-  parser = argument auto mempty
+  argRead = auto
 
 -- | 'Read' instance.
 instance Parseable Int
@@ -143,12 +143,12 @@ instance Parseable Double where
 
 -- | Parse a string by just accepting the given string.
 instance Parseable String where
-  parser = argument str mempty
+  argRead = str
 
 -- | Parse @'Colour' Double@ as either a named color from "Data.Colour.Names"
 --   or a hexadecimal color.
 instance Parseable (Colour Double) where
-  parser = argument (rc <|> rh) mempty
+  argRead = rc <|> rh
     where
       rh, rc :: ReadM (Colour Double)
       rh = f . colorToSRGBA <$> (readerAsk >>= readHexColor)
@@ -160,7 +160,7 @@ instance Parseable (Colour Double) where
 -- | Parse @'AlphaColour' Double@ as either a named color from "Data.Colour.Names"
 --   or a hexadecimal color.
 instance Parseable (AlphaColour Double) where
-  parser = argument (rc <|> rh) mempty
+  argRead = rc <|> rh
     where
       rh = readerAsk >>= readHexColor
       rc = opaque <$> (readerAsk >>= readColourName)
@@ -194,16 +194,16 @@ readHexColor cs = case cs of
                 _        -> fail $ "could not parse as a hex value" ++ [a,b]
 
 instance Parseable () where
-  parser = pure ()
+  argRead = pure ()
 
 instance (Parseable a, Parseable b) => Parseable (a,b) where
-  parser = (,) <$> parser <*> parser
+  argRead = (,) <$> argRead <*> argRead
 
 instance (Parseable a, Parseable b, Parseable c) => Parseable (a, b, c) where
-  parser = (,,) <$> parser <*> parser <*> parser
+  argRead = (,,) <$> argRead <*> argRead <*> argRead
 
 instance (Parseable a, Parseable b, Parseable c, Parseable d) => Parseable (a, b, c, d) where
-  parser = (,,,) <$> parser <*> parser <*> parser <*> parser
+  argRead = (,,,) <$> argRead <*> argRead <*> argRead <*> argRead
 
 -- Mainable helper parsers ---------------------------------------------
 
@@ -236,7 +236,7 @@ class WithOutcome a where
   type Args a
   type Args a = ()
 
-  -- | The target type that eventually gets targeted with an 'IO' acion in
+  -- | The target type that eventually gets targeted with an 'IO' action in
   --   'withOutcome'.
   type Outcome a
   type Outcome a = a
@@ -248,12 +248,13 @@ class WithOutcome a where
   default argsParser :: Args a ~ () => proxy a -> Parser (Args a)
   argsParser _ = pure ()
 
-  -- | Given an IO action to run on the target of a, and a, execute the
-  --   result.
+  -- | Take an IO action that uses the Outcome of @a@ along with the
+  --   args of a and @a@ itself and run the action.
   withOutcome :: (Outcome a -> IO ()) -> Args a -> a -> IO ()
 
   -- | Default case where @a@ is the target.
-  default withOutcome :: (Args a ~ (), a ~ Outcome a) => (Outcome a -> IO ()) -> Args a -> a -> IO ()
+  default withOutcome :: (Args a ~ (), a ~ Outcome a)
+                      => (Outcome a -> IO ()) -> Args a -> a -> IO ()
   withOutcome f () r = f r
 
 resultProxy :: a -> Proxy (Outcome a)
@@ -268,7 +269,7 @@ instance WithOutcome a => WithOutcome (IO a) where
 instance (Parseable a, WithOutcome b) => WithOutcome (a -> b) where
   type Args (a -> b)   = (a, Args b)
   type Outcome (a -> b) = Outcome b
-  argsParser _ = (,) <$> parser <*> argsParser (Proxy :: Proxy b)
+  argsParser _ = (,) <$> argument argRead mempty <*> argsParser (Proxy :: Proxy b)
   withOutcome f (a, args) g = withOutcome f args (g a)
 
 -- | Choose from a list of things to render.
@@ -332,7 +333,7 @@ class RenderOutcome t r where
   default resultParser
     :: Parseable (MainOpts t r)
     => t -> proxy r -> Parser (MainOpts t r)
-  resultParser _ _ = parser
+  resultParser _ _ = argument argRead mempty
 
   -- | Way to render @r@ given @t@ and the options recieved from the
   --   command line.
