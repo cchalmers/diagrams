@@ -105,7 +105,9 @@ import           Data.Distributive
 import           Data.Semigroup
 import           Data.Typeable
 
+
 import           Geometry.Space
+import           Geometry.TwoD.Offset (LineCap (..), LineJoin (..))
 
 import           Diagrams.Types
 
@@ -391,26 +393,25 @@ _strokeOpacity = style . atAttr _StrokeOpacity . non 1
 
 -- line cap ------------------------------------------------------------
 
--- | The shape should be placed at the endpoints of lines. 'Default' is
---   'LineCapButt'.
-data LineCap
-  = LineCapButt   -- ^ Lines end precisely at their endpoints.
-  | LineCapRound  -- ^ Lines are capped with semicircles centered on
-                  --   endpoints.
-  | LineCapSquare -- ^ Lines are capped with a squares centered on
-                  --   endpoints.
-  deriving (Eq, Ord, Show, Typeable)
-  -- XXX PICS!!!
+-- -- 'LineCap' is now defined in "Geometry.TwoD.Offset".
 
-instance Default LineCap where
-  def = LineCapButt
+-- -- | The shape should be placed at the endpoints of lines. 'Default' is
+-- --   'LineCapButt'.
+-- data LineCap
+--   = LineCapButt   -- ^ Lines end precisely at their endpoints.
+--   | LineCapRound  -- ^ Lines are capped with semicircles centered on
+--                   --   endpoints.
+--   | LineCapSquare -- ^ Lines are capped with a squares centered on
+--                   --   endpoints.
+--   deriving (Eq, Ord, Show, Typeable)
+--   -- XXX PICS!!!
 
-instance AttributeClass LineCap where
-  type AttrType LineCap = 'IAttr
+-- instance Default LineCap where
+--   def = LineCapButt
 
--- | Last semigroup structure.
-instance Semigroup LineCap where
-  _ <> b = b
+-- -- | Last semigroup structure.
+-- instance Semigroup LineCap where
+--   _ <> b = b
 
 _LineCap :: Equality' LineCap LineCap
 _LineCap = id
@@ -425,27 +426,26 @@ _lineCap = style . atAttr _LineCap
 
 -- line join -----------------------------------------------------------
 
--- | How should the join points between line segments be drawn?
-data LineJoin
-  = LineJoinMiter    -- ^ Use a \"miter\" shape (whatever that is).
-  | LineJoinRound    -- ^ Use rounded join points.
-  | LineJoinBevel    -- ^ Use a \"bevel\" shape (whatever that is).  Are
-                     --   these... carpentry terms?
-  deriving (Eq, Ord, Show, Typeable)
-  --- XXX MOAR PICS
+-- 'LineJoin' is now defined in "Geometry.TwoD.Offset".
+
+-- -- | How should the join points between line segments be drawn?
+-- data LineJoin
+--   = LineJoinMiter    -- ^ Use a \"miter\" shape (whatever that is).
+--   | LineJoinRound    -- ^ Use rounded join points.
+--   | LineJoinBevel    -- ^ Use a \"bevel\" shape (whatever that is).  Are
+--                      --   these... carpentry terms?
+--   deriving (Eq, Ord, Show, Typeable)
+--   --- XXX MOAR PICS
 
 _LineJoin :: Equality' LineJoin LineJoin
 _LineJoin = id
 
-instance AttributeClass LineJoin where
-  type AttrType LineJoin = 'IAttr
-
 -- | Last semigroup structure.
-instance Semigroup LineJoin where
-  _ <> b = b
+-- instance Semigroup LineJoin where
+--   _ <> b = b
 
-instance Default LineJoin where
-  def = LineJoinMiter
+-- instance Default LineJoin where
+--   def = LineJoinMiter
 
 -- | Set the segment join style.
 lineJoin :: ApplyStyle a => LineJoin -> a -> a

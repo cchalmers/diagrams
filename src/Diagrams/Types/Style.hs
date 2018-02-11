@@ -83,6 +83,7 @@ import           Data.Typeable
 import           Diagrams.Types.Measure
 import           Geometry.Space
 import           Geometry.Transform     hiding (T)
+import           Geometry.TwoD.Offset   (LineCap (..), LineJoin (..))
 
 import           Linear                 (V2, V3)
 import           Linear.Vector
@@ -133,6 +134,12 @@ type family Attribute' k a (v :: * -> *) n :: Constraint where
 type AttributeSpace a v n = (AttributeClass a, Attribute' (AttrType a) a v n, SingAttr (AttrType a))
 -- Note that Attribute class does not mention v or n so we can't have
 -- AttributeSpace as a superclass of AttributeClass.
+
+instance AttributeClass LineJoin where
+  type AttrType LineJoin = 'IAttr
+
+instance AttributeClass LineCap where
+  type AttrType LineCap = 'IAttr
 
 -- | Every attribute must be an instance of @AttributeClass@  The
 --   'Semigroup' instance for an attribute determines how it will combine
