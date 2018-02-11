@@ -36,23 +36,22 @@ module Diagrams.TwoD.Attributes (
   , _SC, _AC, _LG, _RG
   , solid
   , GradientStop(..), stopColor, stopFraction, mkStops
-  , SpreadMethod(..) -- , lineLGradient, lineRGradient
+  , SpreadMethod(..)
 
+  -- ** Gradients
   , HasGradient (..)
-  -- , lGradStops
-  -- , lGrandientEnd
-  -- , lGradSpreadMethod
 
-  -- ** Linear Gradients
-  , LGradient(..) -- , lGradStops, lGradTrans, gradientStart, gradientEnd -- lGradStart, lGradEnd
-  , lGradientEnd
-  , gradientEnd
+  -- *** Linear Gradients
+  , LGradient
   , mkLinearGradient
+  , gradientStart
+  , gradientEnd
 
-  -- ** Radial Gradients
-  , RGradient(..), rGradStops, rGradTrans
-  , rGradCenter0, rGradRadius0, rGradCenter1, rGradRadius1
-  , rGradSpreadMethod, mkRadialGradient
+  -- *** Radial Gradients
+  , RGradient
+  , mkRadialGradient
+  , gradientCenter0, gradientRadius0
+  , gradientCenter1, gradientRadius1
 
   -- ** Line texture
   , LineTexture, _LineTexture
@@ -96,7 +95,7 @@ import           Geometry.Query
 import           Geometry.Space
 import           Geometry.Transform
 import           Geometry.TwoD.Path    (isInsideWinding)
-import           Geometry.TwoD.Types
+import           Geometry.TwoD.Types   hiding (p2)
 
 import           Diagrams.Attributes
 import           Diagrams.Types
@@ -109,17 +108,22 @@ import           Data.Coerce
 
 -- | A gradient stop contains a color and fraction (usually between 0 and 1)
 data GradientStop = GradientStop
-  { _stopColor    :: SomeColor
-  , _stopFraction :: Double
+  { _stopColor    :: !(AlphaColour Double)
+  , _stopFraction :: !Double
   }
 
 makeLensesWith (lensRules & generateSignatures .~ False) ''GradientStop
 
 -- | A color for the stop.
-stopColor :: Lens' GradientStop SomeColor
+stopColor :: Lens' GradientStop (AlphaColour Double)
 
 -- | The fraction for stop.
 stopFraction :: Lens' GradientStop Double
+
+-- | A convenient function for making gradient stops from a list of triples.
+--   (An opaque color, a stop fraction, an opacity).
+mkStops :: Color c => [(c, Double)] -> [GradientStop]
+mkStops = map (\(c, x) -> GradientStop (toAlphaColour c) x)
 
 -- | The 'SpreadMethod' determines what happens before 'lGradStart' and
 --   after 'lGradEnd'. 'GradPad' fills the space before the start of the
@@ -128,9 +132,9 @@ stopFraction :: Lens' GradientStop Double
 --   restarts the gradient and 'GradReflect' restarts the gradient with
 --   the stops in reverse order.
 data SpreadMethod
-  = Pad     -- ^ <diagram>
-  | Reflect -- ^ <diagram>
-  | Repeat  -- ^ <diagram>
+  = GradPad     -- ^ <diagram>
+  | GradReflect -- ^ <diagram>
+  | GradRepeat  -- ^ <diagram>
 
 -- | Class of lenses both 'LGradient' and 'RGradient' use.
 class InSpace V2 Double a => HasGradient a where
@@ -138,23 +142,43 @@ class InSpace V2 Double a => HasGradient a where
   gradientStops :: Lens' a [GradientStop]
 
   -- | The 'SpreadMethod' to use for the gradient.
-  spreadMethod :: Lens' a SpreadMethod
+  gradientSpreadMethod :: Lens' a SpreadMethod
 
-  -- | The 'SpreadMethod' to use for the gradient.
-  gradientStart :: Lens' a (P2 Double)
-  gradientStart = gradientTransform . undefined
-
-  -- | The transform to apply to the gradient.
+  -- | A transformation to be applied to the gradient. Usually this field
+  --   will start as the identity transform and capture the transforms
+  --   that are applied to the gradient.
+  --
+  --   Note that 'LGradient' and 'RGradient' also have 'Transformable'
+  --   instances.
   gradientTransform :: Lens' a (T2 Double)
 
 -- Linear gradients ----------------------------------------------------
 
--- | Linear Gradient
+--     - 'gradientStart'        :: 'Lens'' 'LGradient' ('P2' 'Double')
+--     - 'gradientEnd'          :: 'Lens'' 'LGradient' ('P2' 'Double')
+--     - 'gradientStops'        :: 'Lens'' 'LGradient' ['GradientStop']
+--     - 'gradientTranform'     :: 'Lens'' 'LGradient' ('T2' 'Double')
+--     - 'gradientSpreadMethod' :: 'Lens'' 'LGradient' 'SpreadMethod'
+
+-- | Linear Gradient. A linear gradient is created with
+--   'mkLinearGradient'. A linear gradient supports the following
+--   lenses:
+--
+--     - 'gradientStart': Starting point of gradient
+--     - 'gradientEnd': Ending point of gradient
+--     - 'gradientStops': The colours that make up the gradient
+--     - 'gradientTranform': The transform applied to the gradient
+--     - 'gradientSpreadMethod': How the gradient fills space beyond the
+--        start and end points
+--
+--  You can use 'fillTexture' or 'lineTexture' to apply a gradient to a
+--  diagram.
 data LGradient = LGradient
-  { _lGradStops            :: [GradientStop]
-  , _lGradientTransform    :: T2 Double
-  , _lGradientSpreadMethod :: SpreadMethod
-  , _lGradientEnd          :: P2 Double
+  { _gradientStart         :: P2 Double
+  , _gradientEnd           :: P2 Double
+  , _lGradStops            :: [GradientStop]
+  , _lGradTransform    :: T2 Double
+  , _lGradSpreadMethod :: SpreadMethod
   }
 
 type instance V LGradient = V2
@@ -163,50 +187,63 @@ type instance N LGradient = Double
 makeLensesWith (lensRules & generateSignatures .~ False) ''LGradient
 
 instance Transformable LGradient where
-  transform = over lGradientTransform . transform
-
--- | A list of stops (colors and fractions).
-lGradStops :: Lens' LGradient [GradientStop]
-
--- | A transformation to be applied to the gradient. Usually this field will
---   start as the identity transform and capture the transforms that are applied
---   to the gradient.
-lGradientTransform :: Lens' LGradient (T2 Double)
-
--- | The starting point for the first gradient stop. The coordinates are in
---   'local' units and the default is (-0.5, 0).
--- gradientStart :: Lens' LGradient (P2 Double)
--- gradientStart = undefined -- lGradTrans . tranlation . _Point
-
--- | The finishing point for an 'LGradient'.
---
---   The default is @'mkP2' (0.5, 0)@
-lGradientEnd :: Lens' LGradient (P2 Double)
-gradientEnd :: Lens' LGradient (P2 Double)
-gradientEnd = lGradientEnd
--- It is possible to include this in the transformation but if the start
--- and end point coinside, even temporarly, this will break the
--- transformation. So it's easier use to have a distint point for the
--- end location.
-
--- | For setting the spread method.
-lGradientSpreadMethod :: Lens' LGradient SpreadMethod
+  transform = over lGradTransform . transform
 
 instance HasGradient LGradient where
-  gradientStops = lGradStops
-  gradientTransform = lGradientTransform
-  spreadMethod = lGradientSpreadMethod
+  gradientStops        = lGradStops
+  gradientTransform    = lGradTransform
+  gradientSpreadMethod = lGradSpreadMethod
+
+lGradStops :: Lens' LGradient [GradientStop]
+lGradTransform :: Lens' LGradient (T2 Double)
+lGradSpreadMethod :: Lens' LGradient SpreadMethod
+
+-- | The staring point for an 'LGradient'.
+gradientStart :: Lens' LGradient (P2 Double)
+
+-- | The finishing point for an 'LGradient'.
+gradientEnd :: Lens' LGradient (P2 Double)
+
+-- | Make a radial gradient texture from a stop list and start and end
+--   points. The 'gradientSpreadMethod' is 'GradPad'.
+mkLinearGradient
+  :: Color c
+  => [(c, Double)] -- ^ colours to use
+  -> P2 Double     -- ^ start point
+  -> P2 Double     -- ^ end point
+  -> LGradient     -- ^ linear gradient texture
+mkLinearGradient cs p1 p2  = LGradient
+  { _gradientStart     = p1
+  , _gradientEnd       = p2
+  , _lGradStops        = mkStops cs
+  , _lGradTransform    = mempty
+  , _lGradSpreadMethod = GradPad
+  }
 
 -- Radial gradients ----------------------------------------------------
 
--- | Radial Gradient
+-- | Radial Gradient. A radial gradient is created with
+--   'mkRadialGradient'. A radial gradient supports the following
+--   lenses:
+--
+--     - 'gradientCenter0': Inner circle center
+--     - 'gradientRadius0': Inner circle radius (default 0)
+--     - 'gradientCenter1': Outer circle center
+--     - 'gradientRadius1': Outer circle radius
+--     - 'gradientStops': The colours that make up the gradient
+--     - 'gradientTransform': The transform applied to the gradient
+--     - 'gradientSpreadMethod': How the gradient fills space beyond the
+--        outer circle
+--
+--  You can use 'fillTexture' or 'lineTexture' to apply a gradient to a
+--  diagram.
 data RGradient = RGradient
-  { _rGradStops        :: [GradientStop]
+  { _gradientCenter0   :: P2 Double
+  , _gradientRadius0   :: Double
+  , _gradientCenter1   :: P2 Double
+  , _gradientRadius1   :: Double
+  , _rGradStops        :: [GradientStop]
   , _rGradSpreadMethod :: SpreadMethod
-  , _rGradCenter0      :: P2 Double
-  , _rGradRadius0      :: Double
-  , _rGradCenter1      :: P2 Double
-  , _rGradRadius1      :: Double
   , _rGradTrans        :: T2 Double
   }
 
@@ -218,28 +255,46 @@ type instance N RGradient = Double
 instance Transformable RGradient where
   transform = over rGradTrans . transform
 
--- | A list of stops (colors and fractions).
+instance HasGradient RGradient where
+  gradientStops        = rGradStops
+  gradientTransform    = rGradTrans
+  gradientSpreadMethod = rGradSpreadMethod
+
 rGradStops :: Lens' RGradient [GradientStop]
+rGradTrans :: Lens' RGradient (T2 Double)
+rGradSpreadMethod :: Lens' RGradient SpreadMethod
 
 -- | The center point of the inner circle.
-rGradCenter0 :: Lens' RGradient (P2 Double)
+gradientCenter0 :: Lens' RGradient (P2 Double)
 
 -- | The radius of the inner cirlce in 'local' coordinates.
-rGradRadius0 :: Lens' RGradient Double
+gradientRadius0 :: Lens' RGradient Double
 
 -- | The center of the outer circle.
-rGradCenter1  :: Lens' RGradient (P2 Double)
+gradientCenter1  :: Lens' RGradient (P2 Double)
 
 -- | The radius of the outer circle in 'local' coordinates.
-rGradRadius1 :: Lens' RGradient Double
+gradientRadius1 :: Lens' RGradient Double
 
--- | A transformation to be applied to the gradient. Usually this field
---   will start as the identity transform and capture the transforms
---   that are applied to the gradient.
-rGradTrans :: Lens' RGradient (T2 Double)
-
--- | For setting the spread method.
-rGradSpreadMethod :: Lens' RGradient SpreadMethod
+-- | Make a radial gradient texture from a stop list, center point and
+--   outer circle radius. Both the inner and outer circles use the same
+--   center. The radius of the inner circle is 0. The
+--   'gradientSpreadMethod' is 'GradPad'.
+mkRadialGradient
+  :: Color c
+  => [(c, Double)]
+  -> P2 Double
+  -> Double
+  -> RGradient
+mkRadialGradient stops c1 r1 = RGradient
+  { _gradientCenter0   = mkP2 0 0
+  , _gradientRadius0   = 0.0
+  , _gradientCenter1   = c1
+  , _gradientRadius1   = r1
+  , _rGradStops        = mkStops stops
+  , _rGradTrans        = mempty
+  , _rGradSpreadMethod = GradPad
+  }
 
 ------------------------------------------------------------------------
 -- Textures
@@ -292,74 +347,6 @@ instance ToTexture LGradient where
 instance ToTexture RGradient where
   toTexture = RG
 
--- | A default is provided so that linear gradients can easily be created using
---   lenses. For example, @lg = defaultLG & lGradStart .~ (0.25 ^& 0.33)@. Note that
---   no default value is provided for @lGradStops@, this must be set before
---   the gradient value is used, otherwise the object will appear transparent.
-mkLinearGradient
-  :: Color c
-  => [(c, Double)] -- ^ colours to use
-  -> P2 Double    -- ^ start point
-  -> P2 Double    -- ^ end point
-  -> Texture      -- ^ linear gradient texture
-mkLinearGradient _cs _p1 _p2  = undefined -- LG LGradient
-  -- { _lGradStops        = cs
-  -- , _lGradTrans        = mempty -- & gradPosisions .~ (p1, p2)
-  -- , _lGradSpreadMethod = GradPad
-  -- }
-
--- -- | Apply a linear gradient as a fill texture with the 'GradPad'
--- --   method.
--- linearGradient
---   :: (ApplyStyle a, Colour c, Fractional n)
---   => [(c, Double)] -- ^ colours to use
---   -> Point V2 n    -- ^ start point
---   -> Point V2 n    -- ^ end point
---   -> a
---   -> a
--- linearGradient = applyTAttr .
-
--- | A default is provided so that radial gradients can easily be created using
---   lenses. For example, @rg = defaultRG & rGradRadius1 .~ 0.25@. Note that
---   no default value is provided for @rGradStops@, this must be set before
---   the gradient value is used, otherwise the object will appear transparent.
--- defaultRG :: Fractional n => Texture n
--- defaultRG = RG RGradient
---   { _rGradStops        = []
---   , _rGradCenter0      = mkP2 0 0
---   , _rGradRadius0      = 0.0
---   , _rGradCenter1      = mkP2 0 0
---   , _rGradRadius1      = 0.5
---   , _rGradTrans        = mempty
---   , _rGradSpreadMethod = GradPad
---   }
-
--- | A convenient function for making gradient stops from a list of triples.
---   (An opaque color, a stop fraction, an opacity).
-mkStops :: Color c => [(c, Double)] -> [GradientStop]
-mkStops = map (\(c, x) -> GradientStop (SomeColor c) x)
-
--- | Make a linear gradient texture from a stop list, start point, end point,
---   and 'SpreadMethod'. The 'lGradTrans' field is set to the identity
---   transfrom, to change it use the 'lGradTrans' lens.
--- mkLinearGradient :: Num n => [GradientStop n] -> Point V2 n -> Point V2 n -> SpreadMethod -> Texture n
--- mkLinearGradient stops  start end spreadMethod
---   = LG (LGradient stops start end mempty spreadMethod)
-
--- | Make a radial gradient texture from a stop list, radius, start point,
---   end point, and 'SpreadMethod'. The 'rGradTrans' field is set to the identity
---   transfrom, to change it use the 'rGradTrans' lens.
-mkRadialGradient
-  :: [GradientStop]
-  -> P2 Double
-  -> Double
-  -> P2 Double
-  -> Double
-  -> SpreadMethod
-  -> Texture
-mkRadialGradient = undefined -- stops c0 r0 c1 r1 spreadMethod
-  -- = RG (RGradient stops c0 r0 c1 r1 mempty spreadMethod)
-
 -- Line Texture --------------------------------------------------------
 
 -- | The texture with which lines are drawn.  Note that child
@@ -390,12 +377,12 @@ instance Default LineTexture where
 -- | Apply a line texture.
 --
 -- @
--- lineTexture :: Colour Double      -> Diagram V2 -> Diagram V2
--- lineTexture :: AlphaColour Double -> Diagram V2 -> Diagram V2
--- lineTexture :: SomeColor          -> Diagram V2 -> Diagram V2
--- lineTexture :: Texture            -> Diagram V2 -> Diagram V2
--- lineTexture :: RGradient          -> Diagram V2 -> Diagram V2
--- lineTexture :: LGradient          -> Diagram V2 -> Diagram V2
+-- 'lineTexture' :: 'Colour' 'Double'      -> 'Diagram' 'V2' -> 'Diagram' 'V2'
+-- 'lineTexture' :: 'AlphaColour' 'Double' -> 'Diagram' 'V2' -> 'Diagram' V2
+-- 'lineTexture' :: 'SomeColor'          -> 'Diagram' 'V2' -> 'Diagram' 'V2'
+-- 'lineTexture' :: 'Texture'            -> 'Diagram' 'V2' -> 'Diagram' 'V2'
+-- 'lineTexture' :: 'RGradient'          -> 'Diagram' 'V2' -> 'Diagram' 'V2'
+-- 'lineTexture' :: 'LGradient'          -> 'Diagram' 'V2' -> 'Diagram' 'V2'
 -- @
 lineTexture :: (InSpace V2 Double a, ToTexture t, ApplyStyle a) => t -> a -> a
 lineTexture = applyAttr _LineTexture . toTexture
