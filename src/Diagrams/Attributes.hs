@@ -154,6 +154,9 @@ instance Typeable n => AttributeClass (LineWidth n) where
 lineWidth :: (N a ~ n, ApplyStyle a, Typeable n) => Measure n -> a -> a
 lineWidth = applyAttr _LineWidth
 
+instance Num n => Default (LineWidth n) where
+  def = review _LineWidth 1
+
 -- | Default for 'lineWidth'.
 lw :: (N a ~ n, ApplyStyle a, Typeable n) => Measure n -> a -> a
 lw = lineWidth
@@ -327,6 +330,9 @@ instance AttributeClass Opacity where
 _Opacity :: Iso' Opacity Double
 _Opacity = coerced
 
+instance Default Opacity where
+  def = Opacity 1
+
 -- | Multiply the opacity (see 'Opacity') by the given value.  For
 --   example, @opacity 0.8@ means \"decrease this diagram's opacity to
 --   80% of its previous opacity\".
@@ -352,6 +358,9 @@ instance AttributeClass FillOpacity where
 _FillOpacity :: Iso' FillOpacity Double
 _FillOpacity = coerced
 
+instance Default FillOpacity where
+  def = FillOpacity 1
+
 -- | Multiply the fill opacity (see 'FillOpacity') by the given value.  For
 --   example, @fillOpacity 0.8@ means \"decrease this diagram's fill opacity to
 --   80% of its previous value\".
@@ -376,6 +385,9 @@ instance AttributeClass StrokeOpacity where
 
 _StrokeOpacity :: Iso' StrokeOpacity Double
 _StrokeOpacity = coerced
+
+instance Default StrokeOpacity where
+  def = StrokeOpacity 1
 
 -- | Multiply the stroke opacity (see 'StrokeOpacity') by the given value.  For
 --   example, @strokeOpacity 0.8@ means \"decrease this diagram's

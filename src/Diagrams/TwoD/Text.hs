@@ -184,6 +184,9 @@ newtype FontSize n = FontSize (Last n)
 _FontSize :: Iso' (FontSize n) n
 _FontSize = coerced
 
+instance Num n => Default (FontSize n) where
+  def = review _FontSize 11
+
 instance Typeable n => AttributeClass (FontSize n) where
   type AttrType (FontSize n) = 'MAttr
 
