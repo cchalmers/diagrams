@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeOperators         #-}
 
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -230,6 +231,24 @@ pattern ExternalImage_ :: (Typeable n, Num n) => Int -> Int -> FilePath -> Prim 
 pattern ExternalImage_ w h path
   <- (preview _ExternalImage -> Just (DImage w h (ImageRef path))) where
   ExternalImage_ w h path = Prim (DImage w h (ImageRef path))
+
+-- Annotations ---------------------------------------------------------
+
+pattern GroupOpacity_ :: Double -> Annotation V2 Double
+pattern GroupOpacity_ a <- (getAnnot _GroupOpacity -> Just a) where
+  GroupOpacity_ = mkAnnot _GroupOpacity
+
+pattern Clip_ :: Seq (Path V2 Double) -> Annotation V2 Double
+pattern Clip_ a <- (getAnnot _Clip -> Just a) where
+  Clip_ = mkAnnot _Clip
+
+pattern Shading_ :: Diagram V2 -> Annotation V2 Double
+pattern Shading_ a <- (getAnnot _Shading -> Just a) where
+  Shading_ = mkAnnot _Shading
+
+pattern HRef_ :: String -> Annotation V2 Double
+pattern HRef_ a <- (getAnnot _HRef -> Just a) where
+  HRef_ = mkAnnot _HRef
 
 -- | Get the normalized scale factor from a vector. For the
 --   'normalizedFactor' of a diagram use this with the 'size' of the
