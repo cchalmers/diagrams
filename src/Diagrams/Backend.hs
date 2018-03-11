@@ -48,7 +48,7 @@ class Backend b where
 
   -- | Render a diagram into the result along with the transformation
   --   from the original diagram to output diagram.
-  renderDiaT :: Options b -> Diagram (V b) -> (Result b, Transformation (V b) Double)
+  renderDiaT :: Options b -> Diagram (V b) -> (V2 Double, Transformation (V b) Double, Result b)
 
   -- | General information about the backend that can be used by various
   --   other tools and libraries.
