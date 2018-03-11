@@ -1,12 +1,13 @@
 {-# LANGUAGE CPP                   #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
+
+{-# LANGUAGE TypeApplications      #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -32,30 +33,37 @@ module Diagrams.Backend.Compile
   -- )
   where
 
-import           Control.Lens              hiding (transform)
-import           Control.Lens.Extras       (is)
-import qualified Data.Foldable             as F
+import           Control.Lens                 hiding (transform)
+import           Control.Lens.Extras          (is)
+import           Data.Colour                  (Colour)
+import qualified Data.Foldable                as F
+import qualified Data.Monoid                  as M
 import           Data.Monoid.Coproduct.Strict
-import qualified Data.Monoid as            M
+import           Data.Sequence                (Seq)
 import           Data.Typeable
-import Data.Colour (Colour)
 
-import           Geometry.Envelope    (size)
-import           Geometry.Transform
+import           Geometry.Envelope            (size)
+import           Geometry.Path                (Path)
 import           Geometry.Space
-import           Geometry.Path (Path)
--- import           Geometry.Path.Unboxed (UPath)
+import           Geometry.Transform
+import           Codec.Picture.Types          (DynamicImage, dynamicMap,
+                                               imageHeight, imageWidth)
 import           Geometry.ThreeD.Shapes
 import           Geometry.ThreeD.Types
-import           Codec.Picture.Types  (DynamicImage, dynamicMap, imageWidth, imageHeight)
 
 import           Diagrams.Types
-import           Diagrams.Types.Tree (foldDUAL)
+import           Diagrams.Types.Tree          (foldDUAL)
 
-import Diagrams.TwoD.Image (DImage(..), ImageData(..), Embedded, External)
-import Diagrams.ThreeD.Light (PointLight (..))
-import Diagrams.TwoD.Text (Text)
-import Linear (Additive, V2)
+import           Diagrams.Attributes
+import           Diagrams.ThreeD.Light        (PointLight (..))
+import           Diagrams.TwoD.Attributes
+import           Diagrams.TwoD.Image          (DImage (..), Embedded, External,
+                                               ImageData (..))
+import           Diagrams.TwoD.Text           (Text)
+import           Linear                       (Additive, V2)
+
+import           Data.Coerce
+import           Data.Semigroup
 
 -- Typeable1 is a depreciated synonym in ghc > 707
 #if __GLASGOW_HASKELL__ >= 707
@@ -63,7 +71,8 @@ import Linear (Additive, V2)
 #endif
 
 foldDiaWithScales
-  :: (HasLinearMap v, OrderedField n, M.Monoid r)
+  :: forall v n m r.
+     (HasLinearMap v, OrderedField n, M.Monoid r)
   => (Transformation v n -> Attributes -> Prim v n -> r)
   -> (Annotation v n -> r -> r)
   -> n -- 'global' to 'output' scale factor
@@ -81,9 +90,12 @@ foldDiaWithScales primF aF g n (QD dual) = foldDUAL lF aF dual
         in  foldDUAL lF aF dia
 {-# INLINE foldDiaWithScales #-}
 
+newtype MonadMonoid f a = MonadMonoid (f a)
+
 -- | Simple way to fold a diagram into a monoidal result.
 foldDia
-  :: (HasLinearMap v, OrderedField n, Monoid r)
+  :: forall v n m r.
+    (HasLinearMap v, OrderedField n, Monoid r)
   => (Transformation v n -> Attributes -> Prim v n -> r) -- ^ Fold a prim
   -> (Annotation v n -> r -> r)   -- ^ Apply an annotation
   -> Transformation v n           -- ^ final transform for diagram
@@ -94,6 +106,42 @@ foldDia primF annF t d = foldDiaWithScales primF annF g n d
     g = avgScale t
     n = normalizedFactor (size d)
 {-# INLINE foldDia #-}
+
+-- | Monoid under '*>'
+newtype Ap f a = Ap (f a)
+instance (Applicative f, a ~ ()) => Semigroup (Ap f a) where
+  (<>) = coerce ((*>) @f @() @())
+instance (Applicative f, a ~ ()) => Monoid (Ap f a) where
+  mempty  = Ap (pure ())
+  mappend = (<>)
+
+-- | Applicative version of 'foldDia' with @mempty = pure ()@ and @mappend =
+--   (*>)@
+foldDiaA
+  :: forall v n m f.
+     (HasLinearMap v, OrderedField n, Applicative f)
+  => (Transformation v n -> Attributes -> Prim v n -> f ()) -- ^ Fold a prim
+  -> (Annotation v n -> f () -> f ())   -- ^ Apply an annotation
+  -> Transformation v n           -- ^ final transform for diagram
+  -> QDiagram v n m               -- ^ diagram to fold
+  -> f ()
+foldDiaA = coerce (foldDia @v @n @m @(Ap f ()))
+{-# INLINE foldDiaA #-}
+
+-- | Applicative version of 'foldDiaWithScales' with @mempty = pure ()@
+--   and @mappend = (*>)@
+foldDiaWithScalesA
+  :: forall v n m f.
+     (HasLinearMap v, OrderedField n, Applicative f)
+  => (Transformation v n -> Attributes -> Prim v n -> f ())
+  -> (Annotation v n -> f () -> f ())
+  -> n -- 'global' to 'output' scale factor
+  -> n -- 'normalised' to 'output' scale factor
+  -> QDiagram v n m -- ^ diagram to fold
+  -> f ()
+foldDiaWithScalesA = coerce (foldDiaWithScales @v @n @m @(Ap f ()))
+{-# INLINE foldDiaWithScalesA #-}
+
 
 -- Standard prisms -----------------------------------------------------
 
