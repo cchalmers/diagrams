@@ -36,6 +36,7 @@ import           Control.Lens                       hiding (beside)
 import           Data.Monoid.WithSemigroup
 
 import           Geometry
+import           Geometry.Direction
 import           Linear                             (V3)
 import           Linear.Metric
 import           Linear.Vector                      ((*^))

@@ -56,7 +56,9 @@ import           Diagrams.Types
 import           Diagrams.Measured
 import           Diagrams.Util
 import           Geometry
-import           Geometry.CubicSpline
+import           Geometry.Envelope
+import           Geometry.Direction
+import           Geometry.Trace
 
 ------------------------------------------------------------------------
 -- Marking the origin
