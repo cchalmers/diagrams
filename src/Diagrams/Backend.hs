@@ -169,6 +169,16 @@ sdlInfo = BackendInfo
   , backendExtensions  = []
   }
 
+canvasInfo :: BackendInfo
+canvasInfo = BackendInfo
+  { backendModuleName = "diagrams-canvas"
+  , backendTokenName  = "PGF"
+  , backendModules    = ["Diagrams.Backend.Canvas"]
+  , backendNames      = ["canvas"]
+  , backendExtensions = []
+  }
+
+
 -- renderCode
 --   :: BackendInfo -- ^ backend attemping to use
 --   -> FilePath    -- ^ output file
