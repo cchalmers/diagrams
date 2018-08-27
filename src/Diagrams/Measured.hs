@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE TypeFamilies   #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Measured
