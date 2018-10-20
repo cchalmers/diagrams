@@ -16,6 +16,7 @@ library
   exposed-modules:
     Diagrams
     Diagrams.Prelude
+    Diagrams.Arrow
     Diagrams.Attributes
     Diagrams.Animation.Active
     Diagrams.Animation
@@ -66,7 +67,7 @@ library
     data-default-class,
     distributive,
     hashable,
-    monoid-extras > 0.5,
+    monoid-extras,
     containers,
     mtl,
     adjunctions,
