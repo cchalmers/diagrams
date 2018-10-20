@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Combinators
--- Copyright   :  (c) 2011-2016 diagrams-core team (see LICENSE)
+-- Copyright   :  (c) 2011-2018 diagrams-core team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
 --
@@ -57,7 +57,7 @@ import qualified Numeric.Interval.NonEmpty.Internal as I
 --   >     circle 1 # fc green
 --   >     |||
 --   >     (    c # dashingG [0.1,0.1] 0 # lc white
---   >       <> square 2 # withEnvelope (c :: D V2 Double) # fc blue
+--   >       <> square 2 # withEnvelope (c :: Diagram V2) # fc blue
 --   >     )
 --   > c = circle 0.8
 --   > withEnvelopeEx = sqNewEnv # centerXY # pad 1.5
