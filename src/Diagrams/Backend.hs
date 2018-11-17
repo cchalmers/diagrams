@@ -188,6 +188,15 @@ canvasInfo = BackendInfo
   , backendExtensions = []
   }
 
+povrayInfo :: BackendInfo
+povrayInfo = BackendInfo
+  { backendModuleName = "diagrams-povray"
+  , backendTokenName  = "POVRay"
+  , backendModules    = ["Diagrams.Backend.POVRay"]
+  , backendNames      = ["povray"]
+  , backendExtensions = []
+  }
+
 
 -- renderCode
 --   :: BackendInfo -- ^ backend attemping to use
