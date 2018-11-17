@@ -69,6 +69,16 @@ adjustSize2D spec d = (sz, t, d # transform t)
   where
     (sz, t) = sizeAdjustment (fmap fromIntegral spec) (boundingBox d)
 
+adjustSize
+  :: HasLinearMap v
+  => SizeSpec v Int
+  -> Diagram v
+  -> (v Double, Transformation v Double, Diagram v)
+adjustSize spec d = (sz, t, d # transform t)
+  where
+    (sz, t) = sizeAdjustment (fmap fromIntegral spec) (boundingBox d)
+
+
 -- Generical output ----------------------------------------------------
 
 -- | Backends that can render do a file with a 2D size output.
