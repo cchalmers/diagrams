@@ -56,7 +56,7 @@ import           Diagrams.Types
 import           Diagrams.Types.Tree          (foldDUAL)
 
 import           Diagrams.Attributes
-import           Diagrams.ThreeD.Light        (PointLight (..))
+import           Diagrams.ThreeD.Light        (PointLight (..), ParallelLight (..))
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Image          (DImage (..), Embedded, External,
                                                ImageData (..))
@@ -185,6 +185,9 @@ _Sphere = _Prim
 _PointLight :: Prism' (Prim V3 Double) PointLight
 _PointLight = _Prim
 
+_ParallelLight :: Prism' (Prim V3 Double) ParallelLight
+_ParallelLight = _Prim
+
 -- Patterns ------------------------------------------------------------
 
 pattern Cube_ :: (Typeable n, Num n) => Prim V3 n
@@ -202,6 +205,10 @@ pattern Sphere_ <- (is _Sphere -> True) where
 pattern PointLight_ :: P3 Double -> Colour Double -> Prim V3 Double
 pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
   PointLight_ p c = Prim (PointLight p c)
+
+pattern ParallelLight_ :: V3 Double -> Colour Double -> Prim V3 Double
+pattern ParallelLight_ p c <- (preview _ParallelLight -> Just (ParallelLight p c)) where
+  ParallelLight_ p c = Prim (ParallelLight p c)
 
 pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
               => Path v n -> Prim v n
