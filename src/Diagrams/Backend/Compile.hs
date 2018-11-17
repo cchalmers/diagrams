@@ -91,8 +91,6 @@ foldDiaWithScales primF aF g n (QD dual) = foldDUAL lF aF dual
         in  foldDUAL lF aF dia
 {-# INLINE foldDiaWithScales #-}
 
-newtype MonadMonoid f a = MonadMonoid (f a)
-
 -- | Simple way to fold a diagram into a monoidal result.
 foldDia
   :: forall v n m r.
