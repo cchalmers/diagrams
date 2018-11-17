@@ -188,32 +188,36 @@ _PointLight = _Prim
 _ParallelLight :: Prism' (Prim V3 Double) ParallelLight
 _ParallelLight = _Prim
 
+_CSG :: Prism' (Prim V3 Double) (CSG Double)
+_CSG = _Prim
+
 -- Patterns ------------------------------------------------------------
 
+pattern Prim_ :: (InSpace v n a, Typeable a) => a -> Prim v n
+pattern Prim_ a <- (preview _Prim -> Just a) where
+  Prim_ a = Prim a
+
 pattern Cube_ :: (Typeable n, Num n) => Prim V3 n
-pattern Cube_ <- (is _Cube -> True) where
-  Cube_ = Prim Cube
+pattern Cube_ = Prim_ Cube
 
 pattern Frustum_ :: (Typeable n, Num n) => n -> n -> Prim V3 n
-pattern Frustum_ a b <- (preview _Frustum -> Just (Frustum a b)) where
-  Frustum_ a b = Prim (Frustum a b)
+pattern Frustum_ a b = (Prim_ (Frustum a b))
 
 pattern Sphere_ :: (Typeable n, Num n) => Prim V3 n
-pattern Sphere_ <- (is _Sphere -> True) where
-  Sphere_ = Prim Sphere
+pattern Sphere_ = Prim_ Sphere
+
+pattern CSG_ :: CSG Double -> Prim V3 Double
+pattern CSG_ a = Prim_ a
 
 pattern PointLight_ :: P3 Double -> Colour Double -> Prim V3 Double
-pattern PointLight_ p c <- (preview _PointLight -> Just (PointLight p c)) where
-  PointLight_ p c = Prim (PointLight p c)
+pattern PointLight_ p c = (Prim_ (PointLight p c))
 
 pattern ParallelLight_ :: V3 Double -> Colour Double -> Prim V3 Double
-pattern ParallelLight_ p c <- (preview _ParallelLight -> Just (ParallelLight p c)) where
-  ParallelLight_ p c = Prim (ParallelLight p c)
+pattern ParallelLight_ p c = (Prim_ (ParallelLight p c))
 
 pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
               => Path v n -> Prim v n
-pattern Path_ p <- (preview _Path -> Just p) where
-  Path_ p = Prim p
+pattern Path_ p = Prim_ p
 
 -- pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
 --                => UPath v n -> Prim v n
@@ -221,8 +225,7 @@ pattern Path_ p <- (preview _Path -> Just p) where
 --   UPath_ p = Prim p
 
 pattern Text_ :: (Typeable n, Num n) => Text n -> Prim V2 n
-pattern Text_ p <- (preview _Text -> Just p) where
-  Text_ p = Prim p
+pattern Text_ p = Prim_ p
 
 pattern EmbeddedImage_ :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
 pattern EmbeddedImage_ dyn
