@@ -130,7 +130,7 @@ _Ambient :: Iso' Ambient Double
 _Ambient = coerced
 
 -- | Set the emittance due to ambient light.
-ambient :: HasStyle d => Double -> d -> d
+ambient :: ApplyStyle d => Double -> d -> d
 ambient = applyAttr _Ambient
 
 -- | Lens onto the possible ambience in a style.
