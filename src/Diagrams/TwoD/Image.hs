@@ -2,9 +2,11 @@
 {-# LANGUAGE EmptyDataDecls        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -23,7 +25,6 @@
 module Diagrams.TwoD.Image
   ( -- * DImage dtype
     DImage(..)
-  , ImageData(..)
   , image
 
     -- * Embedded images
@@ -49,85 +50,88 @@ module Diagrams.TwoD.Image
 
 import           Codec.Picture
 import           Codec.Picture.Types  (dynamicMap)
--- import Control.Lens hiding (transform)
+import Control.Lens ((<&>))
 
+import qualified Data.ByteString.Lazy as LB
+import           Data.Char            (toLower)
 import           Data.Colour          (AlphaColour)
 import           Data.Semigroup
 import           Data.Typeable        (Typeable)
-import           Data.Char (toLower)
-import           System.FilePath (takeExtension)
-import qualified Data.ByteString.Lazy as LB
+import           System.FilePath      (takeExtension)
 
-import           Geometry.Space
 import           Geometry.BoundingBox
 import           Geometry.Envelope
-import           Geometry.Trace
 import           Geometry.Query
+import           Geometry.Space
+import           Geometry.Trace
 import           Geometry.TwoD.Types
 
 import           Diagrams.Attributes  (colorToSRGBA)
 import           Diagrams.Types
 
--- import           Linear.Affine
-
 -- | Native images are backend specific image that allow their own
 --   format.
 data Native t deriving Typeable
 
--- | 'ImageData' is either a JuicyPixels @DynamicImage@ tagged as 'Embedded' or
---   a reference tagged as 'External'. Additionally 'Native' is provided for
---   external libraries to hook into.
-data ImageData :: * -> * where
-  ImageRaster :: DynamicImage -> ImageData Embedded
-  ImageRef    :: FilePath -> ImageData External
-  ImageNative :: t -> ImageData (Native t)
+-- | A diagrams images.
+data DImage :: * -> * where
+  -- | An embedded JuicyPixels image. See 'loadImageEmb' and
+  --   'loadImageEmbBS'
+  ImageEmbedded :: DynamicImage -> DImage Embedded
 
--- | An image primitive, the two ints are width followed by height.
---   Will typically be created by @loadImageEmb@ or @loadImageExt@
---   which, will handle setting the width and height to the actual width
---   and height of the image.
-data DImage :: * -> * -> * where
-  DImage :: !Int -> !Int -> ImageData t -> DImage n t
+  -- | A reference to an external image along with its size. Backends
+  --   whose target supports images as references will keep this image
+  --   as a reference. To get the size of the image automatically use
+  --   'loadImageExt'.
+  ImageExternal :: V2 Int -> !FilePath -> DImage External
+
+  -- | Images that are specialised to a particular backend.
+  ImageNative :: V2 Int -> !t -> DImage (Native t)
   deriving Typeable
 
-type instance V (DImage n a) = V2
-type instance N (DImage n a) = n
+dimageSize :: DImage t -> V2 Int
+dimageSize = \case
+  ImageEmbedded img -> V2 (dynamicMap imageWidth img) (dynamicMap imageHeight img)
+  ImageExternal s _ -> s
+  ImageNative s _   -> s
 
-instance OrderedField n => HasQuery (DImage n a) Any where
+type instance V (DImage a) = V2
+type instance N (DImage a) = Double
+
+instance HasQuery (DImage a) Any where
   getQuery = getQuery . boundingBox
   {-# INLINE getQuery #-}
 
-instance OrderedField n => Enveloped (DImage n a) where
+instance Enveloped (DImage a) where
   getEnvelope = getEnvelope . boundingBox
   {-# INLINE getEnvelope #-}
 
-  boundingBox (DImage w h _) = fromCorners (mkP2 (-w') (-h')) (mkP2 w' h')
+  boundingBox (dimageSize -> V2 w h) = fromCorners (mkP2 (-w') (-h')) (mkP2 w' h')
     where
       w' = fromIntegral w / 2; h' = fromIntegral h / 2
   {-# INLINE boundingBox #-}
 
-instance RealFloat n => Traced (DImage n a) where
+instance Traced (DImage a) where
   getTrace = getTrace . boundingBox
   {-# INLINE getTrace #-}
 
 -- | Make a 'DImage' into a 'Diagram'.
-image :: (TypeableFloat n, Typeable a) => DImage n a -> QDiagram V2 n Any
+image :: Typeable a => DImage a -> Diagram V2
 image = primQD
 
 -- Embedded images -----------------------------------------------------
 
 -- | Embedded images contain the raw data is imbedded in the output file
 --   of the diagram. Internally they are represented by a 'DynamicImage'
---   from the "JuicyPixels" library.
+--   from the JuicyPixels library.
 data Embedded deriving Typeable
 
 -- | Crate a diagram from raw raster data.
 rasterDia
-  :: TypeableFloat n
-  => Int -- ^ width
+  :: Int -- ^ width
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
-  -> QDiagram V2 n Any
+  -> Diagram V2
 rasterDia w h f = image $ raster w h f
 
 -- | Create an image "from scratch" by specifying the pixel data.
@@ -135,8 +139,8 @@ raster
   :: Int -- ^ width
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
-  -> DImage n Embedded
-raster w h f = DImage w h (ImageRaster (ImageRGBA8 img))
+  -> DImage Embedded
+raster w h f = ImageEmbedded (ImageRGBA8 img)
   where
     img = generateImage f' w h
     f' x y = fromAlphaColour $ f x y
@@ -147,27 +151,17 @@ raster w h f = DImage w h (ImageRaster (ImageRGBA8 img))
       int x = round (255 * x)
 
 -- | Create an embedded image from a 'DynamicImage'.
-embedded :: DynamicImage -> DImage n Embedded
-embedded img = DImage w h (ImageRaster img)
-  where
-    w = dynamicMap imageWidth img
-    h = dynamicMap imageHeight img
+embedded :: DynamicImage -> DImage Embedded
+embedded = ImageEmbedded
 
 -- | Create an embedded image from a 'DynamicImage'.
-embeddedDia :: TypeableFloat n => DynamicImage -> QDiagram V2 n Any
+embeddedDia :: DynamicImage -> Diagram V2
 embeddedDia = image . embedded
 
 -- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
 --   The width and height of the image are set to their actual values.
-loadImageEmb :: FilePath -> IO (Either String (DImage n Embedded))
-loadImageEmb path = do
-  dImg <- readImage path
-  return $ case dImg of
-    Left msg  -> Left msg
-    Right img -> Right $ DImage w h (ImageRaster img)
-      where
-        w = dynamicMap imageWidth img
-        h = dynamicMap imageHeight img
+loadImageEmb :: FilePath -> IO (Either String (DImage Embedded))
+loadImageEmb path = fmap embedded <$> readImage path
 
 -- External images -----------------------------------------------------
 
@@ -178,32 +172,30 @@ data External deriving Typeable
 -- | Check that a file exists, and use JuicyPixels to figure out
 --   the right size, but save a reference to the image instead
 --   of the raster data
-loadImageExt :: FilePath -> IO (Either String (DImage n External))
+loadImageExt :: FilePath -> IO (Either String (DImage External))
 loadImageExt path = do
-  dImg <- readImage path
-  return $ case dImg of
-    Left msg  -> Left msg
-    Right img -> Right $ DImage w h (ImageRef path)
-      where
-        w = dynamicMap imageWidth img
-        h = dynamicMap imageHeight img
+  -- It would be much more efficient to only look at the image header to
+  -- get the size but JuicyPixels doesn't seem to support this.
+  embImg <- loadImageEmb path
+  pure $ embImg <&> \img -> ImageExternal (dimageSize img) path
 
 -- | Make an "unchecked" image reference; have to specify a
 --   width and height. Unless the aspect ratio of the external
 --   image is the w :: h, then the image will be distorted.
-uncheckedImageRef :: Int -> Int -> FilePath -> DImage n External
-uncheckedImageRef w h path = DImage w h (ImageRef path)
+uncheckedImageRef :: Int -> Int -> FilePath -> DImage External
+uncheckedImageRef w h path = ImageExternal (V2 w h) path
 
--- | Convert an external image to an embedded one.
-externalToEmbedded :: DImage n External -> IO (Either String (DImage n Embedded))
-externalToEmbedded (DImage _ _ (ImageRef path)) = loadImageEmb path
+-- | Convert an external image to an embedded one. The old size is
+-- ignored.
+externalToEmbedded :: DImage External -> IO (Either String (DImage Embedded))
+externalToEmbedded (ImageExternal _ path) = loadImageEmb path
 
 -- | Convert an embedded image to an external one, saving the image to
 --   the path. This can be useful for backends that don't support
 --   embedded images. The type of image used depends on the extension of
 --   the output file.
-embeddedToExternal :: FilePath -> DImage n Embedded -> IO (Either String (DImage n External))
-embeddedToExternal path (DImage w h (ImageRaster dyn)) =
+embeddedToExternal :: FilePath -> DImage Embedded -> IO (Either String (DImage External))
+embeddedToExternal path img@(ImageEmbedded dyn) =
   case map toLower $ takeExtension path of
     ".png" -> writeDynamicPng path dyn >> exImg
 
@@ -231,5 +223,4 @@ embeddedToExternal path (DImage w h (ImageRaster dyn)) =
 
     _       -> pure $ Left "No file extension given"
 
-  where exImg = pure . Right $ DImage w h (ImageRef path)
-
+  where exImg = pure . Right $ ImageExternal (dimageSize img) path

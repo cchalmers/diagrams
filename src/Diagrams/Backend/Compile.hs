@@ -58,10 +58,9 @@ import           Diagrams.Types.Tree          (foldDUAL)
 import           Diagrams.Attributes
 import           Diagrams.ThreeD.Light        (PointLight (..), ParallelLight (..))
 import           Diagrams.TwoD.Attributes
-import           Diagrams.TwoD.Image          (DImage (..), Embedded, External,
-                                               ImageData (..))
+import           Diagrams.TwoD.Image          (DImage (..), Embedded, External)
 import           Diagrams.TwoD.Text           (Text)
-import           Linear                       (Additive, V2)
+import           Linear                       (Additive, V2(..))
 
 import           Data.Coerce
 import           Data.Semigroup
@@ -157,11 +156,11 @@ _Text :: (Typeable n, Num n) => Prism' (Prim V2 n) (Text n)
 _Text = _Prim
 
 -- | Prism onto to an embedded image.
-_ExternalImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n External)
+_ExternalImage :: Prism' (Prim V2 Double) (DImage External)
 _ExternalImage = _Prim
 
 -- | Prism onto to an embedded image.
-_EmbeddedImage :: (Typeable n, Num n) => Prism' (Prim V2 n) (DImage n Embedded)
+_EmbeddedImage :: Prism' (Prim V2 Double) (DImage Embedded)
 _EmbeddedImage = _Prim
 
 ------------------------------------------------------------------------
@@ -219,26 +218,18 @@ pattern Path_ :: (Typeable v, Additive v, Num n, Typeable n)
               => Path v n -> Prim v n
 pattern Path_ p = Prim_ p
 
--- pattern UPath_ :: (Typeable v, Additive v, Typeable n, Num n)
---                => UPath v n -> Prim v n
--- pattern UPath_ p <- (preview _UPath -> Just p) where
---   UPath_ p = Prim p
-
 pattern Text_ :: (Typeable n, Num n) => Text n -> Prim V2 n
 pattern Text_ p = Prim_ p
 
-pattern EmbeddedImage_ :: (Typeable n, Num n) => DynamicImage -> Prim V2 n
+pattern EmbeddedImage_ :: DynamicImage -> Prim V2 Double
 pattern EmbeddedImage_ dyn
-  <- (preview _EmbeddedImage -> Just (DImage _ _ (ImageRaster dyn))) where
-  EmbeddedImage_ img =
-    let w = dynamicMap imageWidth img
-        h = dynamicMap imageHeight img
-    in  Prim (DImage w h (ImageRaster img))
+  <- (preview _EmbeddedImage -> Just (ImageEmbedded dyn)) where
+  EmbeddedImage_ img = Prim (ImageEmbedded img)
 
-pattern ExternalImage_ :: (Typeable n, Num n) => Int -> Int -> FilePath -> Prim V2 n
+pattern ExternalImage_ :: Int -> Int -> FilePath -> Prim V2 Double
 pattern ExternalImage_ w h path
-  <- (preview _ExternalImage -> Just (DImage w h (ImageRef path))) where
-  ExternalImage_ w h path = Prim (DImage w h (ImageRef path))
+  <- (preview _ExternalImage -> Just (ImageExternal (V2 w h) path)) where
+  ExternalImage_ w h path = Prim (ImageExternal (V2 w h) path)
 
 -- Annotations ---------------------------------------------------------
 
