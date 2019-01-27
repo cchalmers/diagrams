@@ -75,7 +75,6 @@ import           Data.Dynamic
 import qualified Data.HashMap.Strict    as HM
 import qualified Data.Map               as M
 import           Data.Monoid.Action     as A
-import           Data.Semigroup
 import qualified Data.Set               as S
 import           Data.Type.Equality
 import           Data.Typeable

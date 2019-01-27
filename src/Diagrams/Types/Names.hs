@@ -41,7 +41,6 @@ module Diagrams.Types.Names
 
 import           Control.Lens            hiding ((.>))
 import qualified Data.Map                as M
-import           Data.Semigroup
 import qualified Data.Set                as S
 import           Data.Typeable
 import           Data.Hashable

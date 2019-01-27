@@ -42,7 +42,6 @@ import           Control.Lens              hiding (none, ( # ))
 import           Data.Colour.Names
 import           Data.Default.Class
 import           Data.List                 (intercalate)
-import           Data.Semigroup
 import           Linear.Vector
 import           Numeric.Interval.NonEmpty.Internal
 

@@ -27,7 +27,6 @@ module Diagrams.Measured
   where
 
 import           Data.Monoid.Coproduct.Strict
-import           Data.Semigroup
 import           Data.Typeable
 
 import           Diagrams.Backend.Compile     (normalizedFactor)

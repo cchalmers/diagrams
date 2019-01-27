@@ -21,7 +21,6 @@ import           Control.Lens
 import qualified Control.Monad.Reader as R
 import           Data.Distributive
 import           Data.Functor.Rep
-import           Data.Semigroup
 import           Data.Typeable
 
 import           Geometry.Space

@@ -28,7 +28,6 @@ module Diagrams.TwoD.Path.Unboxed
 
 
 -- import Control.Lens hiding (transform)
-import Data.Semigroup
 -- import Data.Typeable
 -- import qualified Data.Foldable as F
 -- import Data.Sequence (Seq, singleton)

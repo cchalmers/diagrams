@@ -38,7 +38,6 @@ import           Data.Foldable             (foldMap)
 #endif
 import           Data.Monoid
 import           Data.Monoid.WithSemigroup
-import           Data.Semigroup
 
 import           Active
 import           Diagrams.Animation.Active

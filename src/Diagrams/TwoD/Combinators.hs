@@ -40,7 +40,6 @@ module Diagrams.TwoD.Combinators
 import           Control.Lens              ((&), (.~))
 import           Data.Colour
 import           Data.Monoid.WithSemigroup
-import           Data.Semigroup
 import           Linear.Vector
 
 import           Geometry

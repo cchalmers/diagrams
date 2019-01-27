@@ -62,7 +62,6 @@ import           Diagrams.TwoD.Text           (Text)
 import           Linear                       (Additive, V2 (..))
 
 import           Data.Coerce
-import           Data.Semigroup
 
 -- Typeable1 is a depreciated synonym in ghc > 707
 #if __GLASGOW_HASKELL__ >= 707
