@@ -26,14 +26,15 @@ module Diagrams.TwoD.Image
   ( -- * DImage dtype
     DImage(..)
   , image
+  , dimageSize
 
     -- * Embedded images
   , Embedded
   , embedded
-  , embeddedDia
   , raster
   , rasterDia
   , loadImageEmb
+  , loadImageEmbBS
 
     -- * External images
   , External
@@ -50,8 +51,9 @@ module Diagrams.TwoD.Image
 
 import           Codec.Picture
 import           Codec.Picture.Types  (dynamicMap)
-import Control.Lens ((<&>))
+import           Control.Lens         ((<&>))
 
+import           Data.ByteString      (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import           Data.Char            (toLower)
 import           Data.Colour          (AlphaColour)
@@ -151,17 +153,18 @@ raster w h f = ImageEmbedded (ImageRGBA8 img)
       int x = round (255 * x)
 
 -- | Create an embedded image from a 'DynamicImage'.
-embedded :: DynamicImage -> DImage Embedded
-embedded = ImageEmbedded
-
--- | Create an embedded image from a 'DynamicImage'.
-embeddedDia :: DynamicImage -> Diagram V2
-embeddedDia = image . embedded
+embedded :: DynamicImage -> Diagram V2
+embedded = image . ImageEmbedded
 
 -- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
 --   The width and height of the image are set to their actual values.
-loadImageEmb :: FilePath -> IO (Either String (DImage Embedded))
+loadImageEmb :: FilePath -> IO (Either String (Diagram V2))
 loadImageEmb path = fmap embedded <$> readImage path
+
+-- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
+--   The width and height of the image are set to their actual values.
+loadImageEmbBS :: ByteString -> Either String (Diagram V2)
+loadImageEmbBS path = embedded <$> decodeImage path
 
 -- External images -----------------------------------------------------
 
@@ -176,8 +179,9 @@ loadImageExt :: FilePath -> IO (Either String (DImage External))
 loadImageExt path = do
   -- It would be much more efficient to only look at the image header to
   -- get the size but JuicyPixels doesn't seem to support this.
-  embImg <- loadImageEmb path
-  pure $ embImg <&> \img -> ImageExternal (dimageSize img) path
+  eimg <- readImage path
+  pure $ eimg <&> \dimg ->
+    ImageExternal (dimageSize $ ImageEmbedded dimg) path
 
 -- | Make an "unchecked" image reference; have to specify a
 --   width and height. Unless the aspect ratio of the external
@@ -188,14 +192,14 @@ uncheckedImageRef w h path = ImageExternal (V2 w h) path
 -- | Convert an external image to an embedded one. The old size is
 -- ignored.
 externalToEmbedded :: DImage External -> IO (Either String (DImage Embedded))
-externalToEmbedded (ImageExternal _ path) = loadImageEmb path
+externalToEmbedded (ImageExternal _ path) = fmap ImageEmbedded <$> readImage path
 
 -- | Convert an embedded image to an external one, saving the image to
 --   the path. This can be useful for backends that don't support
 --   embedded images. The type of image used depends on the extension of
 --   the output file.
 embeddedToExternal :: FilePath -> DImage Embedded -> IO (Either String (DImage External))
-embeddedToExternal path img@(ImageEmbedded dyn) =
+embeddedToExternal path dimg@(ImageEmbedded dyn) =
   case map toLower $ takeExtension path of
     ".png" -> writeDynamicPng path dyn >> exImg
 
@@ -223,4 +227,4 @@ embeddedToExternal path img@(ImageEmbedded dyn) =
 
     _       -> pure $ Left "No file extension given"
 
-  where exImg = pure . Right $ ImageExternal (dimageSize img) path
+  where exImg = pure . Right $ ImageExternal (dimageSize dimg) path
