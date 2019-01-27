@@ -17,11 +17,9 @@ module Diagrams.Arrow where
   -- ) where
 
 import           Control.Lens                       hiding (beside)
-import           Data.Monoid.WithSemigroup
 
 import           Geometry
 import           Linear
-import           Linear.Metric
 import           Linear.Vector                      ((*^))
 
 import           Data.Colour.Names
@@ -31,7 +29,6 @@ import           Diagrams.Attributes
 import           Diagrams.Measured
 import           Diagrams.TwoD.Attributes
 import           Diagrams.Types
-import qualified Numeric.Interval.NonEmpty.Internal as I
 
 -- | Given a direction and a length, return an arrow head/tail.
 data Arrow v = Arrow
@@ -127,7 +124,7 @@ connectOutside'
   -> n2
   -> Diagram V2
   -> Diagram V2
-connectOutside' opts n1 n2 d =
+connectOutside' opts n1 n2 dia =
   case ps of
     Nothing      -> mempty
     Just (pa0,pb0) -> measuredDiagram $ do
@@ -148,15 +145,15 @@ connectOutside' opts n1 n2 d =
           pb' = pb .-^ (hLength *^ fromDir d)
           -- the shaft between the two points (straight line only for now)
           shaft = pa' ~~ pb' & applyStyle (opts ^. shaftStyle)
-          head  = moveTo pb
-                $ pointArrow (opts ^. arrowHead) d hLength & applyStyle (opts ^. headStyle) & opacity 0.5
-          tail  = moveTo pa
-                $ pointArrow (opts ^. arrowTail) d tLength & applyStyle (opts ^. tailStyle) & opacity 0.5
-      pure $ head <> tail <> shaft
+          ahead  = moveTo pb
+                 $ pointArrow (opts ^. arrowHead) d hLength & applyStyle (opts ^. headStyle) & opacity 0.5
+          atail  = moveTo pa
+                 $ pointArrow (opts ^. arrowTail) d tLength & applyStyle (opts ^. tailStyle) & opacity 0.5
+      pure $ ahead <> atail <> shaft
   where
     ps = do
-      sa <- toMaybe $ findSubs n1 d
-      sb <- toMaybe $ findSubs n2 d
+      sa <- toMaybe $ findSubs n1 dia
+      sb <- toMaybe $ findSubs n2 dia
       let pa = subLocation sa
           pb = subLocation sb
           v  = pb .-. pa

@@ -13,6 +13,9 @@
 {-# LANGUAGE ViewPatterns          #-}
 {-# LANGUAGE MonoLocalBinds        #-}
 
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+-- https://ghc.haskell.org/trac/ghc/ticket/14253
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Diagrams.Types.Tree
@@ -81,6 +84,7 @@ module Diagrams.Types.Tree
   , getI
   , idualShow
   , pushDown
+  , routeBottoms
   ) where
 
 #if __GLASGOW_HASKELL__ < 710

@@ -35,7 +35,6 @@ module Diagrams.Backend.Compile
   where
 
 import           Control.Lens                 hiding (transform)
-import           Control.Lens.Extras          (is)
 import           Data.Colour                  (Colour)
 import qualified Data.Foldable                as F
 import qualified Data.Monoid                  as M
@@ -43,24 +42,24 @@ import           Data.Monoid.Coproduct.Strict
 import           Data.Sequence                (Seq)
 import           Data.Typeable
 
+import           Codec.Picture.Types          (DynamicImage)
 import           Geometry.Envelope            (size)
 import           Geometry.Path                (Path)
 import           Geometry.Space
-import           Geometry.Transform
-import           Codec.Picture.Types          (DynamicImage, dynamicMap,
-                                               imageHeight, imageWidth)
 import           Geometry.ThreeD.Shapes
 import           Geometry.ThreeD.Types
+import           Geometry.Transform
 
 import           Diagrams.Types
 import           Diagrams.Types.Tree          (foldDUAL)
 
 import           Diagrams.Attributes
-import           Diagrams.ThreeD.Light        (PointLight (..), ParallelLight (..))
+import           Diagrams.ThreeD.Light        (ParallelLight (..),
+                                               PointLight (..))
 import           Diagrams.TwoD.Attributes
 import           Diagrams.TwoD.Image          (DImage (..), Embedded, External)
 import           Diagrams.TwoD.Text           (Text)
-import           Linear                       (Additive, V2(..))
+import           Linear                       (Additive, V2 (..))
 
 import           Data.Coerce
 import           Data.Semigroup
