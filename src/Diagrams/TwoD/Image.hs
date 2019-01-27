@@ -23,28 +23,28 @@
 -----------------------------------------------------------------------------
 
 module Diagrams.TwoD.Image
-  ( -- * DImage dtype
-    DImage(..)
-  , image
-  , dimageSize
-
-    -- * Embedded images
-  , Embedded
-  , embedded
-  , raster
-  , rasterDia
+  ( -- * Embedded images
+    imageEmb
+  , imageEmbBS
   , loadImageEmb
-  , loadImageEmbBS
+  , rasterDia
 
     -- * External images
-  , External
+  , imageExtUnchecked
   , loadImageExt
-  , uncheckedImageRef
 
-    -- * Native images
+    -- * Internals
+  , DImage (..)
+  , Embedded
+  , External
   , Native
+  , dimage
+  , dimageSize
+  , loadImageSize
 
-    -- * Converting between image types
+  , generateImageRGBA
+
+    -- ** Converting between image types
   , externalToEmbedded
   , embeddedToExternal
   ) where
@@ -85,10 +85,10 @@ data DImage :: * -> * where
   --   whose target supports images as references will keep this image
   --   as a reference. To get the size of the image automatically use
   --   'loadImageExt'.
-  ImageExternal :: V2 Int -> !FilePath -> DImage External
+  ImageExternal :: V2 Int -> FilePath -> DImage External
 
   -- | Images that are specialised to a particular backend.
-  ImageNative :: V2 Int -> !t -> DImage (Native t)
+  ImageNative :: V2 Int -> t -> DImage (Native t)
   deriving Typeable
 
 dimageSize :: DImage t -> V2 Int
@@ -118,8 +118,8 @@ instance Traced (DImage a) where
   {-# INLINE getTrace #-}
 
 -- | Make a 'DImage' into a 'Diagram'.
-image :: Typeable a => DImage a -> Diagram V2
-image = primQD
+dimage :: Typeable a => DImage a -> Diagram V2
+dimage = primQD
 
 -- Embedded images -----------------------------------------------------
 
@@ -134,15 +134,15 @@ rasterDia
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
   -> Diagram V2
-rasterDia w h f = image $ raster w h f
+rasterDia w h f = dimage $ ImageEmbedded (ImageRGBA8 (generateImageRGBA w h f))
 
 -- | Create an image "from scratch" by specifying the pixel data.
-raster
+generateImageRGBA
   :: Int -- ^ width
   -> Int -- ^ height
   -> (Int -> Int -> AlphaColour Double) -- ^ generating function
-  -> DImage Embedded
-raster w h f = ImageEmbedded (ImageRGBA8 img)
+  -> Image PixelRGBA8
+generateImageRGBA w h f = img
   where
     img = generateImage f' w h
     f' x y = fromAlphaColour $ f x y
@@ -153,18 +153,18 @@ raster w h f = ImageEmbedded (ImageRGBA8 img)
       int x = round (255 * x)
 
 -- | Create an embedded image from a 'DynamicImage'.
-embedded :: DynamicImage -> Diagram V2
-embedded = image . ImageEmbedded
+imageEmb :: DynamicImage -> Diagram V2
+imageEmb = dimage . ImageEmbedded
 
--- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
---   The width and height of the image are set to their actual values.
+-- | Use JuicyPixels to decode a bytestring into an image. This will work out which kind of image to 
+imageEmbBS :: ByteString -> Either String (Diagram V2)
+imageEmbBS path = imageEmb <$> decodeImage path
+
+-- | Use JuicyPixels to read an image in any format and use it as an
+--   'Embedded' image in a diagram.  The width and height of the image
+--   are set to their actual values.
 loadImageEmb :: FilePath -> IO (Either String (Diagram V2))
-loadImageEmb path = fmap embedded <$> readImage path
-
--- | Use JuicyPixels to read an image in any format and wrap it in a 'DImage'.
---   The width and height of the image are set to their actual values.
-loadImageEmbBS :: ByteString -> Either String (Diagram V2)
-loadImageEmbBS path = embedded <$> decodeImage path
+loadImageEmb path = fmap imageEmb <$> readImage path
 
 -- External images -----------------------------------------------------
 
@@ -172,22 +172,29 @@ loadImageEmbBS path = embedded <$> decodeImage path
 --   supported depends on the backend.
 data External deriving Typeable
 
+-- | Get the size of an image, returning an error if there was a
+--   problem.
+loadImageSize :: FilePath -> IO (Either String (V2 Int))
+loadImageSize path = do
+  -- It would be much more efficient to only look at the image header to
+  -- get the size but JuicyPixels doesn't seem to have an easy way to do
+  -- this.
+  eimg <- readImage path
+  pure (dimageSize . ImageEmbedded <$> eimg)
+
 -- | Check that a file exists, and use JuicyPixels to figure out
 --   the right size, but save a reference to the image instead
 --   of the raster data
-loadImageExt :: FilePath -> IO (Either String (DImage External))
+loadImageExt :: FilePath -> IO (Either String (Diagram V2))
 loadImageExt path = do
-  -- It would be much more efficient to only look at the image header to
-  -- get the size but JuicyPixels doesn't seem to support this.
-  eimg <- readImage path
-  pure $ eimg <&> \dimg ->
-    ImageExternal (dimageSize $ ImageEmbedded dimg) path
+  isize <- loadImageSize path
+  pure $ isize <&> \sz -> dimage $ ImageExternal sz path
 
 -- | Make an "unchecked" image reference; have to specify a
 --   width and height. Unless the aspect ratio of the external
 --   image is the w :: h, then the image will be distorted.
-uncheckedImageRef :: Int -> Int -> FilePath -> DImage External
-uncheckedImageRef w h path = ImageExternal (V2 w h) path
+imageExtUnchecked :: Int -> Int -> FilePath -> Diagram V2
+imageExtUnchecked w h path = dimage $ ImageExternal (V2 w h) path
 
 -- | Convert an external image to an embedded one. The old size is
 -- ignored.
@@ -223,7 +230,7 @@ embeddedToExternal path dimg@(ImageEmbedded dyn) =
       ImageCMYK16 img -> LB.writeFile path (encodeTiff img) >> exImg
       _               -> pure $ Left "Unsupported image format for TIFF export"
 
-    ('.':ext) -> pure $ Left ("Unknown file extension: " ++ ext)
+    '.':ext -> pure $ Left ("Unknown file extension: " ++ ext)
 
     _       -> pure $ Left "No file extension given"
 
