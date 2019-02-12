@@ -268,7 +268,7 @@ combineMaps i1 l1 i2 l2 =
   f2 | i2 < 0    = (max 1 i1:)
      | otherwise = _head +~ max 1 i1
   g f = HM.map (Set.map $ path %~ f)
-{-# INLINE combineMaps #-}
+-- {-# INLINE combineMaps #-}
 
 ------------------------------------------------------------------------
 -- Non-Empty tree
@@ -435,22 +435,22 @@ itraversedNE' f = go mempty where
     Down i d' t          -> Down i d' <$> go (d `mappend` d') t
     Annot i a t          -> Annot i a <$> go d t
     Concat i ts          -> Concat i <$> traverse (go d) ts
-{-# INLINE itraversedNE' #-}
+-- {-# INLINE itraversedNE' #-}
 
 itraversedNE :: Monoid d => IndexedTraversal d (NE i d u m a l) (NE i d u m a l') l l'
 itraversedNE = conjoined traverse itraversedNE'
-{-# INLINE [0] itraversedNE #-}
+-- {-# INLINE [0] itraversedNE #-}
 
-{-# RULES
- "NE itraversed/map"
-   itraversedNE = sets fmap :: ASetter (NE i d u m a l) (NE i d u m a l') l l';
- "NE itraversed/imap"
-   itraversedNE = isets imap :: Monoid d => AnIndexedSetter d (NE i d u m a l) (NE i d u m a l') l l';
- "NE itraversed/fold"
-   itraversedNE = foldring foldr :: Getting (Endo r) (NE i d u m a l) l;;
- "NE itraversed/ifold"
-   itraversedNE = ifoldring ifoldr :: Monoid d => IndexedGetting d (Endo r) (NE i d u m a l) l;;
- #-}
+-- {-# RULES
+--  "NE itraversed/map"
+--    itraversedNE = sets fmap :: ASetter (NE i d u m a l) (NE i d u m a l') l l';
+--  "NE itraversed/imap"
+--    itraversedNE = isets imap :: Monoid d => AnIndexedSetter d (NE i d u m a l) (NE i d u m a l') l l';
+--  "NE itraversed/fold"
+--    itraversedNE = foldring foldr :: Getting (Endo r) (NE i d u m a l) l;;
+--  "NE itraversed/ifold"
+--    itraversedNE = ifoldring ifoldr :: Monoid d => IndexedGetting d (Endo r) (NE i d u m a l) l;;
+--  #-}
 
 instance Monoid d => TraversableWithIndex d (NE i d u m a) where
   itraversed = itraversedNE
@@ -569,17 +569,17 @@ modU m (NE t)    = NE $ UpMod (labelAnnot $ gi t) m t
 -- | Add a label to the top of an IDUAL.
 label :: (Eq i, Hashable i) => i -> IDUAL i d u m a l -> IDUAL i d u m a l
 label i = label' (Labels (HM.singleton i (Set.singleton startTape))) Nothing
-{-# INLINE label #-}
+-- {-# INLINE label #-}
 
 -- | Add multiple labels to the top of an IDUAL.
 labels :: (Hashable i, Eq i) => [i] -> IDUAL i d u m a l -> IDUAL i d u m a l
 labels is = label' (Labels $ HM.fromList (zip is (repeat $ Set.singleton startTape))) Nothing
-{-# INLINE labels #-}
+-- {-# INLINE labels #-}
 
 -- | Reset the labels, making all previous names invisible.
 resetLabels :: (Hashable i, Eq i) => IDUAL i d u m a l -> IDUAL i d u m a l
 resetLabels = label' NoLabels Nothing
-{-# INLINE resetLabels #-}
+-- {-# INLINE resetLabels #-}
 
 -- | Add a label to the top of an IDUAL along. Adding a 'NoLabels' will
 --   remove all reference to any names below.
@@ -592,7 +592,7 @@ label' ls md t = NE (Label ls' md t)
         Labels m0 -> case ls of
           NoLabels -> NoLabels
           Labels m -> Labels $ HM.unionWith Set.union m0 m
-{-# INLINE label' #-}
+-- {-# INLINE label' #-}
 
 -- | Increment the 'nannots' in all the tapes in a 'Labels' that point
 --   to a subtree before a concat. This is used when adding an
@@ -689,7 +689,7 @@ foldDUAL lF aF (NE t0)   = go mempty t0 where
     Down _ d' t         -> go (d `mappend` d') t
     Annot _ a t         -> aF (act d a) (go d t)
     Concat _ ts         -> F.foldMap (go d) ts
-{-# INLINE foldDUAL #-}
+-- {-# INLINE foldDUAL #-}
 
 ------------------------------------------------------------------------
 -- Subtrees
@@ -858,7 +858,7 @@ mkPretext
   :: (Hashable i, Eq i, Semigroup d, Semigroup u, Action d u, Monoid u)
   => Tape -> IDUAL i d u m a l -> IDUALPretext i d u m a l
 mkPretext tape t = Pretext (\f -> ixDUAL tape f t)
-{-# INLINE mkPretext #-}
+-- {-# INLINE mkPretext #-}
 
 -- Traverse a route ----------------------------------------------------
 
@@ -1002,7 +1002,7 @@ leafs f (NE t0)   = NE <$> go mempty t0 where
     Down _ d' t          -> go (d `mappend` d') t
     Annot i a t          -> Annot i a <$> go d t
     Concat i ts          -> Concat i <$> traverse (go d) ts
-{-# INLINE leafs #-}
+-- {-# INLINE leafs #-}
 
 releaf
   :: forall i d u m a l l'. Monoid d
@@ -1024,7 +1024,7 @@ releaf f (NE t0)   = NE (go mempty t0) where
     Down _ d' t          -> go (d `mappend` d') t
     Annot i a t          -> Annot i a (go d t)
     Concat i ts          -> Concat i $ fmap (go d) ts
-{-# INLINE releaf #-}
+-- {-# INLINE releaf #-}
 
 -- Traversing downs ----------------------------------------------------
 
@@ -1068,7 +1068,7 @@ matchingU p f (NE t0) = NE <$> go mempty t0 where
     Down _ d' t          -> go (d `mappend` d') t
     Annot i a t          -> Annot i a <$> go d t
     Concat i ts          -> Concat i <$> traverse (go d) ts
-{-# INLINE matchingU #-}
+-- {-# INLINE matchingU #-}
 
 tapeMatches :: (Monoid d, Action d u) => (u -> Bool) -> IDUAL i d u m a l -> [Tape]
 tapeMatches _ EmptyDUAL = []
@@ -1086,7 +1086,7 @@ tapeMatches p (NE t0) = go mempty startTape t0 where
     Down _ d' t         -> go (d `mappend` d') tp t
     Annot _ _ t         -> go d (tp & nannots +~ 1) t
     Concat _ ts         -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
-{-# INLINE tapeMatches #-}
+-- {-# INLINE tapeMatches #-}
 
 -- -- Debugging -----------------------------------------------------------
 
