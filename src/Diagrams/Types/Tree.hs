@@ -197,11 +197,12 @@ mkRoute = go where
                         in  (i, mkRoute $ T is n : matched) : go2 ts'
   go2 _               = []
 
-  -- Find subsequent tapes that start with the same concat index.
-  -- XXX equivalent to...
+  -- Split a list of tapes into a run of consecutive tapes that start
+  -- with the given concat index and all the rest; also remove the
+  -- given concat index from the matching tapes.
   go3 :: Int -> [Tape] -> ([Tape], [Tape])
   go3 i ((T (i':is) n):ts')
-    | i == i' = let (matched, ts'') = go3 i ts'
+    | i == i' = let (matched, ts'') = go3 i ts'  -- first (T is n :) (go3 i ts')
                 in  (T is n:matched, ts'')
   go3 _ ts'' = ([], ts'')
 
@@ -212,7 +213,7 @@ mkRoute = go where
 -- | A map from indices to a set of subtrees. NoLabels is used to
 --   hide all labels below this point. See 'resetLabels'.
 --
---   For a Diagram @i@ is 'AName'. In this form it's each to ask for
+--   For a Diagram @i@ is 'AName'. In this form it's easy to ask for
 --   subdiagrams that match every 'AName' in a 'Name' by taking the
 --   intersection of matching @'Set' 'Tape'@s.
 data Labels i
