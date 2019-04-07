@@ -64,7 +64,7 @@ import qualified Numeric.Interval.NonEmpty.Internal as I
 withEnvelope
   :: (InSpace v n a, Enveloped a)
   => a -> QDiagram v n m -> QDiagram v n m
-withEnvelope = modEnvelope . const . getEnvelope
+withEnvelope = replaceEnvelope . getEnvelope
 {-# INLINE withEnvelope #-}
 
 -- | Use the trace from some object as the trace for a diagram, in

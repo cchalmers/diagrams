@@ -149,17 +149,25 @@ upQuery f (UpAnnots e t q) = f q <&> \q' -> UpAnnots e t q'
 -- | Modifications to the envelope or trace of the diagram below.
 data UpModify v n
   = EnvMod (Envelope v n -> Envelope v n)
+  | EnvReplace (Envelope v n)
   | TraceMod (Trace v n -> Trace v n)
 
 instance (HasLinearMap v, OrderedField n) => Action (DownAnnots v n) (UpModify v n) where
   act d = \case
-    EnvMod f   -> EnvMod   $ transform t . f . transform (inv t)
+    EnvMod f     -> EnvMod   $ transform t . f . transform (inv t)
+    EnvReplace e -> EnvReplace $ transform t e
     TraceMod f -> TraceMod $ transform t . f . transform (inv t)
     where t = killR d
 
 instance Action (UpModify v n) (UpAnnots v n m) where
   act (EnvMod f) = upEnvelope %~ f
+  act (EnvReplace e) = upEnvelope .~ e
   act (TraceMod f) = upTrace %~ f
+
+instance Action (UpModify v n) (Envelope v n) where
+  act (EnvMod f) = f
+  act (EnvReplace e) = const e
+  act _ = id
 
 -- Down annotations ----------------------------------------------------
 
