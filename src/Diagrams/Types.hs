@@ -16,7 +16,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Diagrams.Core.Types
+-- Module      :  Diagrams.Types
 -- Copyright   :  (c) 2011-2016 diagrams-core team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com

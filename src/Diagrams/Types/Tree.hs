@@ -1,17 +1,17 @@
-{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE ViewPatterns          #-}
-{-# LANGUAGE MonoLocalBinds        #-}
 
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 -- https://ghc.haskell.org/trac/ghc/ticket/14253
@@ -91,45 +91,25 @@ module Diagrams.Types.Tree
 import           Control.Applicative
 #endif
 import           Data.Foldable             as F (foldMap)
+import           Data.Foldable
 import           Data.Monoid.Action
 import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
 import           Data.Typeable
-import Data.Foldable
 
-import Data.Hashable (Hashable)
-import           Data.HashMap.Lazy                 (HashMap)
-import           Data.Map (Map)
-import qualified Data.Map as M
-import qualified Data.HashMap.Lazy                  as HM
+import           Data.Hashable             (Hashable)
+import           Data.HashMap.Lazy         (HashMap)
+import qualified Data.HashMap.Lazy         as HM
+import           Data.Map                  (Map)
+import qualified Data.Map                  as M
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Seq
 import           Data.Set                  (Set)
 import qualified Data.Set                  as Set
 
 import           Control.Lens
-import           Control.Lens.Internal (Pretext (..), Pretext', ipeek)
-import           Data.Profunctor.Unsafe ((#.))
-
-fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
-fldUl' = go where
-  go f !b = \case
-    Leaf     u _         -> f b u
-    Up       u           -> f b u
-    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
-    Label  _ _ (NE t)    -> go f b t
-    Label  _ _ EmptyDUAL -> b
-    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
-    Annot  _ _ t         -> go f b t
-    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
-{-# INLINE fldUl' #-}
-
--- | Fold each u annotation in order.
-foldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> IDUAL i d u m a l -> b
-foldUl' = \f b0 -> \case
-  NE t      -> fldUl' f b0 t
-  EmptyDUAL -> b0
-{-# INLINE foldUl' #-}
+import           Control.Lens.Internal     (Pretext (..), Pretext', ipeek)
+import           Data.Profunctor.Unsafe    (( #. ))
 
 ------------------------------------------------------------------------
 -- Labeling
@@ -168,6 +148,9 @@ data Tape = T [Int] Int
   --   #c: Tape [1] 1
   --   #d: Tape [1,0] 0
   --   #d: Tape [1,1] 0
+  --
+  -- Note that both Annot and UpMod nodes count as "static
+  -- annotations".
 
   deriving (Show, Eq, Ord)
 
@@ -180,30 +163,31 @@ path :: Lens' Tape [Int]
 path f (T p n) = f p <&> \p' -> T p' n
 {-# INLINE path #-}
 
--- | Number of annotation to pass between the last concat and the
---   target.
+-- | Number of static annotations (@Annot@ and @UpMod@ nodes) to pass
+--   between the last concat and the target.
 nannots :: Lens' Tape Int
 nannots f (T p n) = f n <&> T p
 
 -- Routes --------------------------------------------------------------
 
--- | The route to take while traversing an idual tree. Consists of two
---   parts:
---     - Subtrees to target before the next Concat. This is represented
---       by the number of Annotation nodes to pass.
---     - Targets for next concat together with the route for that
---       concat.
+-- | The route to take while traversing an 'IDUAL' tree, that is, a
+--   representation of a set of targets within a tree.  Conceptually
+--   similar to having a list of @Tape@s, but this representation
+--   shares common prefixes of the tapes so we can visit all targets
+--   with only a single traversal of the tree.
+--
+--   A @Route@ consists of two parts:
+--     - A list of @Int@ giving any subtrees to target before the
+--       next @Concat@, represented by the number of static
+--       annotation nodes to pass for each.
+--     - A list of pairs giving routes to subtrees under the next
+--       @Concat@: each pair is the index of a subtree within the
+--       @Concat@ and a @Route@ to targets within that subtree.
 data Route = Route [Int] [(Int,Route)]
   deriving Show
 
--- equating :: Eq b => (a -> b) -> a -> a -> Bool
--- equating f a b = f a == f b
-
--- testTapes :: [Tape]
--- testTapes = [T [] 0, T [0] 0, T [0,0] 0, T [0,1] 0, T [1] 0, T [1] 1]
-
--- | Construct a route to traverse an idual tree. Expects the tapes to
---   be given in order.
+-- | Construct a route to traverse an 'IDUAL' tree. Expects the tapes
+--   to be ordered left-right by their targets.
 mkRoute :: [Tape] -> Route
 mkRoute = go where
   -- collect all targets before the next concat
@@ -278,19 +262,38 @@ combineMaps i1 l1 i2 l2 =
 --   tree can be edited and the u annotations can be rebuilt properly.
 --   The tree is non-empty in the sense it always has at least a @u@
 --   annotation. It does not have to contain any leafs.
---
---   Invariants:
---     - The 'Seq' in 'Concat' has at least two elements
---     - There should be no observable difference (other than
---       performance) from having the down annotation "pushed".
 data NE i d u m a l
-  = Leaf   u !l                                     -- ^ @l@eaf
-  | Up     u                                        -- ^ @u@p
-  | UpMod  !(Labels i) m !(NE i d u m a l)            -- ^ up-@m@od annotation
-  | Label  !(Labels i) (Maybe d) !(IDUAL i d u m a l) -- ^ label annotation
-  | Down   !(Labels i) !d !(NE i d u m a l)           -- ^ @d@own annotation
-  | Annot  !(Labels i) !a !(NE i d u m a l)           -- ^ @a@nnotation
-  | Concat !(Labels i) (Seq (NE i d u m a l))         -- ^ n-way branch
+  = -- | A @Leaf@ contains an @u@p annotation (/i.e./ a monoidal value
+    --   which propagates upwards) and a leaf value of type @l@.
+    Leaf   u !l
+
+    -- | An @Up@ node is an alternative kind of leaf containing only
+    --   an @u@p annotation.  This can be used to introduce extra
+    --   information into the tree without having to make up an @l@
+    --   value.
+  | Up     u
+
+    -- | XXX What is @UpMod@ for?
+  | UpMod  !(Labels i) m !(NE i d u m a l)          -- ^ up-@m@od annotation
+
+    -- | A @Label@ node is added at every location that has been
+    --   labelled with a name.  Such locations correspond to
+    --   subdiagrams that can subsequently be edited via a lens.
+    --   Hence this contains an @IDUAL@, not just an @NE@, so it can
+    --   potentially be replaced by an empty diagram.
+  | Label  !(Labels i) !(IDUAL i d u m a l)
+
+    -- | A @Down@ node contains a @d@own annotation, /i.e./ a monoidal
+    --   annotation that accumulates downwards.
+  | Down   !(Labels i) !d !(NE i d u m a l)
+
+    -- | An inert @a@nnotation.
+  | Annot  !(Labels i) !a !(NE i d u m a l)
+
+    -- | A @Concat@ node represents the monoidal combination of a
+    --   sequence of trees.  Invariant: there are always at least two
+    --   subtrees.
+  | Concat !(Labels i) (Seq (NE i d u m a l))       -- ^ n-way branch
   deriving (Typeable, Functor, Foldable, Traversable)
 
 -- For now I've kept the type annotation instead of using the actual
@@ -302,11 +305,6 @@ data NE i d u m a l
 -- as you use any of these envelope modifying functions you lose the
 -- ability to rebuild the envelope when editing a subdiagram. (Same for
 -- trace).
-
--- The (Maybe d) in the Label is keep track of any down annotations
--- applied since the label was added. This is useful for things like
--- applying the inverse transform to a subdiagram so you can modify it
--- in its original position at the point of naming.
 
 -- go over the whole tree, collecting all the up annotations
 gu :: (Action d u, Action m u, Monoid u) => NE i d u m a l -> u
@@ -335,6 +333,19 @@ fldU f = go where
     Annot  _ _ t         -> go b t
     Concat _ ts          -> foldr (\t b' -> go b' t) b ts
 {-# INLINE fldU #-}
+
+fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
+fldUl' = go where
+  go f !b = \case
+    Leaf     u _         -> f b u
+    Up       u           -> f b u
+    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
+    Label  _ _ (NE t)    -> go f b t
+    Label  _ _ EmptyDUAL -> b
+    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
+    Annot  _ _ t         -> go f b t
+    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
+{-# INLINE fldUl' #-}
 
 -- get the top level cached labels of the tree
 gi :: NE i d u m a l -> Labels i
@@ -633,6 +644,13 @@ foldU = \f b0 -> \case
   EmptyDUAL -> b0
 {-# INLINE foldU #-}
 
+-- | Fold each u annotation in order.
+foldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> IDUAL i d u m a l -> b
+foldUl' = \f b0 -> \case
+  NE t      -> fldUl' f b0 t
+  EmptyDUAL -> b0
+{-# INLINE foldUl' #-}
+
 -- | Get top level up annotation of a non-empty DUALTree.
 getI :: IDUAL i d u m a l -> Labels i
 getI (NE t) = gi t
@@ -800,6 +818,8 @@ traverseSub [] _ t = pure t
 -- since we know that the target is in the tree this is a lens onto the
 -- target, if a bad tape is passed, ixDUAL will error.
 
+-- XXX MODIFY
+
 -- | Lens onto a sub tree for the given tape. Will error when given a
 --   bad tape.
 ixDUAL
@@ -915,6 +935,8 @@ routeBottoms = go where
     []   -> [] -- should this ever happen?
     [a]  -> [a]
     _:as -> lastTarget as
+
+-- XXX MODIFY
 
 -- | Traverse a route. For routes with nested targets, this will apply
 --   the function to the first occurrence only.
