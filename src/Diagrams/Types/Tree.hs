@@ -310,41 +310,41 @@ data NE i d u m a l
 gu :: (Action d u, Action m u, Monoid u) => NE i d u m a l -> u
 gu = go where
   go = \case
-    Leaf     u _         -> u
-    Up       u           -> u
-    UpMod  _ m t         -> act m (go t)
-    Label  _ _ (NE t)    -> go t
-    Label  _ _ EmptyDUAL -> mempty
-    Down   _ d t         -> act d (go t)
-    Annot  _ _ t         -> go t
-    Concat _ ts          -> foldMap go ts
+    Leaf     u _       -> u
+    Up       u         -> u
+    UpMod  _ m t       -> act m (go t)
+    Label  _ (NE t)    -> go t
+    Label  _ EmptyDUAL -> mempty
+    Down   _ d t       -> act d (go t)
+    Annot  _ _ t       -> go t
+    Concat _ ts        -> foldMap go ts
 {-# INLINE gu #-}
 
 -- a fold over all up annotations
 fldU :: (Action d u, Action m u) => (u -> b -> b) -> b -> NE i d u m a l -> b
 fldU f = go where
   go b = \case
-    Leaf     u _         -> f u b
-    Up       u           -> f u b
-    UpMod  _ m t         -> fldU (f . act m) b t
-    Label  _ _ (NE t)    -> go b t
-    Label  _ _ EmptyDUAL -> b
-    Down   _ d t         -> fldU (f . act d) b t
-    Annot  _ _ t         -> go b t
-    Concat _ ts          -> foldr (\t b' -> go b' t) b ts
+    Leaf     u _       -> f u b
+    Up       u         -> f u b
+    UpMod  _ m t       -> fldU (f . act m) b t
+    Label  _ (NE t)    -> go b t
+    Label  _ EmptyDUAL -> b
+    Down   _ d t       -> fldU (f . act d) b t
+    Annot  _ _ t       -> go b t
+    Concat _ ts        -> foldr (\t b' -> go b' t) b ts
 {-# INLINE fldU #-}
 
 fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
 fldUl' = go where
   go f !b = \case
-    Leaf     u _         -> f b u
-    Up       u           -> f b u
-    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
-    Label  _ _ (NE t)    -> go f b t
-    Label  _ _ EmptyDUAL -> b
-    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
-    Annot  _ _ t         -> go f b t
-    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
+    Leaf     u _       -> f b u
+    Up       u         -> f b u
+    UpMod  _ m t       -> go (\b' u -> f b' $! act m u) b t
+    Label  _ (NE t)    -> go f b t
+    Label  _ EmptyDUAL -> b
+    Down   _ d t       -> go (\b' u -> f b' $! act d u) b t
+    Annot  _ _ t       -> go f b t
+    Concat _ ts        -> foldl' (\b' t -> go f b' t) b ts
 {-# INLINE fldUl' #-}
 
 -- get the top level cached labels of the tree
@@ -353,7 +353,7 @@ gi = \case
   Leaf     _ _ -> NoLabels
   Up       _   -> NoLabels
   UpMod  i _ _ -> i
-  Label  i _ _ -> i
+  Label  i _   -> i
   Down   i _ _ -> i
   Annot  i _ _ -> i
   Concat i _   -> i
@@ -363,14 +363,14 @@ gi = \case
 fual :: (u -> u') -> (a -> a') -> (l -> l') -> NE i d u m a l -> NE i d u' m a' l'
 fual uf af lf = go where
   go = \case
-    Leaf u l            -> Leaf (uf u) (lf l)
-    Up   u              -> Up (uf u)
-    UpMod i m t         -> UpMod i m (go t)
-    Label i d EmptyDUAL -> Label i d EmptyDUAL
-    Label i d (NE t)    -> Label i d (NE (go t))
-    Down i d t          -> Down i d (go t)
-    Annot i a t         -> Annot i (af a) (go t)
-    Concat i ts         -> Concat i (fmap go ts)
+    Leaf u l          -> Leaf (uf u) (lf l)
+    Up   u            -> Up (uf u)
+    UpMod i m t       -> UpMod i m (go t)
+    Label i EmptyDUAL -> Label i EmptyDUAL
+    Label i (NE t)    -> Label i (NE (go t))
+    Down i d t        -> Down i d (go t)
+    Annot i a t       -> Annot i (af a) (go t)
+    Concat i ts       -> Concat i (fmap go ts)
 {-# INLINE fual #-}
 
 -- Combine two trees while preserving any top level Concats
@@ -395,14 +395,14 @@ instance (Hashable i, Eq i) => Semigroup (NE i d u m a l) where
 instance Monoid d => FunctorWithIndex d (NE i d u m a) where
   imap f = go mempty where
     go !d = \case
-      Leaf u l             -> Leaf u (f d l)
-      Up   u               -> Up u
-      UpMod i m t          -> UpMod i m (go d t)
-      Label i md EmptyDUAL -> Label i md EmptyDUAL
-      Label i md (NE t)    -> Label i md (NE (go d t))
-      Down i d' t          -> Down i d' (go (d `mappend` d') t)
-      Annot i a t          -> Annot i a (go d t)
-      Concat i ts          -> Concat i (fmap (go d) ts)
+      Leaf u l          -> Leaf u (f d l)
+      Up   u            -> Up u
+      UpMod i m t       -> UpMod i m (go d t)
+      Label i EmptyDUAL -> Label i EmptyDUAL
+      Label i (NE t)    -> Label i (NE (go d t))
+      Down i d' t       -> Down i d' (go (d `mappend` d') t)
+      Annot i a t       -> Annot i a (go d t)
+      Concat i ts       -> Concat i (fmap (go d) ts)
       -- push down version
       -- Leaf u l               -> Leaf (act d u) (f d l)
       -- Up u                   -> Up (act d u)
@@ -419,14 +419,14 @@ instance Monoid d => FunctorWithIndex d (NE i d u m a) where
 instance Monoid d => FoldableWithIndex d (NE i d u m a) where
   ifoldr f = go mempty where
     go !d b = \case
-      Leaf _ l             -> f d l b
-      Up   _               -> b
-      UpMod _ _ _          -> b
-      Label _ _d EmptyDUAL -> b
-      Label _ _ (NE t)     -> go d b t
-      Down _ d' t          -> go (d `mappend` d') b t
-      Annot _ _ t          -> go d b t
-      Concat _ ts          -> foldr (\t b' -> go d b' t) b ts
+      Leaf _ l          -> f d l b
+      Up   _            -> b
+      UpMod _ _ _       -> b
+      Label _ EmptyDUAL -> b
+      Label _ (NE t)    -> go d b t
+      Down _ d' t       -> go (d `mappend` d') b t
+      Annot _ _ t       -> go d b t
+      Concat _ ts       -> foldr (\t b' -> go d b' t) b ts
   {-# INLINE ifoldr #-}
 
   ifolded = ifoldring ifoldr
@@ -438,14 +438,14 @@ instance Monoid d => FoldableWithIndex d (NE i d u m a) where
 itraversedNE' :: Monoid d => IndexedTraversal d (NE i d u m a l) (NE i d u m a l') l l'
 itraversedNE' f = go mempty where
   go !d = \case
-    Leaf u l             -> Leaf u <$> (indexed f d l)
-    Up   u               -> pure (Up u)
-    UpMod i fu t         -> UpMod i fu <$> go d t
-    Label i md EmptyDUAL -> pure (Label i md EmptyDUAL)
-    Label i md (NE t)    -> Label i md . NE <$> go d t
-    Down i d' t          -> Down i d' <$> go (d `mappend` d') t
-    Annot i a t          -> Annot i a <$> go d t
-    Concat i ts          -> Concat i <$> traverse (go d) ts
+    Leaf u l          -> Leaf u <$> (indexed f d l)
+    Up   u            -> pure (Up u)
+    UpMod i fu t      -> UpMod i fu <$> go d t
+    Label i EmptyDUAL -> pure (Label i EmptyDUAL)
+    Label i (NE t)    -> Label i . NE <$> go d t
+    Down i d' t       -> Down i d' <$> go (d `mappend` d') t
+    Annot i a t       -> Annot i a <$> go d t
+    Concat i ts       -> Concat i <$> traverse (go d) ts
 {-# INLINE itraversedNE' #-}
 
 itraversedNE :: Monoid d => IndexedTraversal d (NE i d u m a l) (NE i d u m a l') l l'
@@ -474,24 +474,24 @@ instance Monoid d => TraversableWithIndex d (NE i d u m a) where
 pushDown :: (Action d m, Action d a, Monoid' d) => NE i d u m a l -> NE i d u m a l
 pushDown = go where
   go = \case
-    Leaf u l             -> Leaf u l
-    Up u                 -> Up u
-    UpMod i f t          -> UpMod i f (go t)
-    Label i md EmptyDUAL -> Label i md EmptyDUAL
-    Label i md (NE t)    -> Label i md (NE (go t))
-    Down i d t           -> Down i d (go2 d t)
-    Annot i a t          -> Annot i a (go t)
-    Concat i ts          -> Concat i (fmap go ts)
+    Leaf u l          -> Leaf u l
+    Up u              -> Up u
+    UpMod i f t       -> UpMod i f (go t)
+    Label i EmptyDUAL -> Label i EmptyDUAL
+    Label i (NE t)    -> Label i (NE (go t))
+    Down i d t        -> Down i d (go2 d t)
+    Annot i a t       -> Annot i a (go t)
+    Concat i ts       -> Concat i (fmap go ts)
 
   go2 !d = \case
-    Leaf u l             -> Down NoLabels d $ Leaf u l
-    Up u                 -> Up u
-    UpMod i m t          -> UpMod i (act d m) (go2 d t)
-    Label i md EmptyDUAL -> Label i (Just d <> md) EmptyDUAL
-    Label i md (NE t)    -> Label i (Just d <> md) (NE (go2 d t))
-    Down _ d' t          -> go2 (d <> d') t
-    Annot i a t          -> Annot i (act d a) (go2 d t)
-    Concat i ts          -> Concat i (fmap (go2 d) ts)
+    Leaf u l          -> Down NoLabels d $ Leaf u l
+    Up u              -> Up u
+    UpMod i m t       -> UpMod i (act d m) (go2 d t)
+    Label i EmptyDUAL -> Label i EmptyDUAL
+    Label i (NE t)    -> Label i (NE (go2 d t))
+    Down _ d' t       -> go2 (d <> d') t
+    Annot i a t       -> Annot i (act d a) (go2 d t)
+    Concat i ts       -> Concat i (fmap (go2 d) ts)
 {-# INLINE pushDown #-}
 
 
@@ -579,23 +579,23 @@ modU m (NE t)    = NE $ UpMod (labelAnnot $ gi t) m t
 
 -- | Add a label to the top of an IDUAL.
 label :: (Eq i, Hashable i) => i -> IDUAL i d u m a l -> IDUAL i d u m a l
-label i = label' (Labels (HM.singleton i (Set.singleton startTape))) Nothing
+label i = label' (Labels (HM.singleton i (Set.singleton startTape)))
 {-# INLINE label #-}
 
 -- | Add multiple labels to the top of an IDUAL.
 labels :: (Hashable i, Eq i) => [i] -> IDUAL i d u m a l -> IDUAL i d u m a l
-labels is = label' (Labels $ HM.fromList (zip is (repeat $ Set.singleton startTape))) Nothing
+labels is = label' (Labels $ HM.fromList (zip is (repeat $ Set.singleton startTape)))
 {-# INLINE labels #-}
 
 -- | Reset the labels, making all previous names invisible.
 resetLabels :: (Hashable i, Eq i) => IDUAL i d u m a l -> IDUAL i d u m a l
-resetLabels = label' NoLabels Nothing
+resetLabels = label' NoLabels
 {-# INLINE resetLabels #-}
 
 -- | Add a label to the top of an IDUAL along. Adding a 'NoLabels' will
 --   remove all reference to any names below.
-label' :: (Hashable i, Eq i) => Labels i -> Maybe d -> IDUAL i d u m a l -> IDUAL i d u m a l
-label' ls md t = NE (Label ls' md t)
+label' :: (Hashable i, Eq i) => Labels i -> IDUAL i d u m a l -> IDUAL i d u m a l
+label' ls t = NE (Label ls' t)
   where
     ls' =
       case getI t of
@@ -699,14 +699,14 @@ foldDUAL
 foldDUAL _  _  EmptyDUAL = mempty
 foldDUAL lF aF (NE t0)   = go mempty t0 where
   go !d = \case
-    Leaf _ l            -> lF d l
-    Up _                -> mempty
-    UpMod _ _ t         -> go d t
-    Label _ _ EmptyDUAL -> mempty
-    Label _ _ (NE t)    -> go d t
-    Down _ d' t         -> go (d `mappend` d') t
-    Annot _ a t         -> aF (act d a) (go d t)
-    Concat _ ts         -> F.foldMap (go d) ts
+    Leaf _ l          -> lF d l
+    Up _              -> mempty
+    UpMod _ _ t       -> go d t
+    Label _ EmptyDUAL -> mempty
+    Label _ (NE t)    -> go d t
+    Down _ d' t       -> go (d `mappend` d') t
+    Annot _ a t       -> aF (act d a) (go d t)
+    Concat _ ts       -> F.foldMap (go d) ts
 {-# INLINE foldDUAL #-}
 
 ------------------------------------------------------------------------
@@ -841,10 +841,10 @@ ixDUAL (T p n) f (NE t0)     = go Nothing p t0 where
   go :: Maybe d -> [Int] -> NE i d u m a l -> f (IDUAL i d u m a l)
   go d []         = go' d n
   go d iss@(i:is) = \case
-    Down _ d' t        -> go (Just $ d `mapp` d') iss t
-    UpMod _ m t        -> upMod m <$> go d iss t
-    Annot _ a t        -> annot a <$> go d iss t
-    Label lb d' (NE t) -> label' lb (d <> d') <$> go d iss t
+    Down _ d' t     -> go (Just $ d `mapp` d') iss t
+    UpMod _ m t     -> upMod m <$> go d iss t
+    Annot _ a t     -> annot a <$> go d iss t
+    Label lb (NE t) -> label' lb <$> go d iss t
     Concat _ ts
       | (sL, t :< sR) <- Seq.splitAt i ts ->
           go d is t <&> \t' -> fromSeq sL <> t' <> fromSeq sR
@@ -856,9 +856,9 @@ ixDUAL (T p n) f (NE t0)     = go Nothing p t0 where
   go' :: Maybe d -> Int -> NE i d u m a l -> f (IDUAL i d u m a l)
   go' _ i | i < 0 = error "ixDUAL: malformed tape: negative expected annotations"
   go' d 0 = \case
-    Label i d' t -> let d'' = d <> d' in label' i d'' <$> indexed f (d <> d') (mdown d t)
+    Label i t    -> label' i <$> indexed f d (mdown d t)
     Down _ d' t  -> go' (Just $ d `mapp` d') 0 t
-    b              -> error $ "ixDUAL: expected label node: " ++ neShow b
+    b            -> error $ "ixDUAL: expected label node: " ++ neShow b
   go' d i = \case
     Down _ d' t -> go' (Just $ d `mapp` d') i t
     Annot _ a t -> annot a <$> go' d (i - 1) t
@@ -965,7 +965,7 @@ route r0 f (NE t0)   = go mempty r0 t0 where
     Down _ d' t -> go (d `mappend` d') r t
     UpMod _ m t -> modU m <$> go d r' t
     Annot _ a t -> annot a <$> go d r' t
-    Label lb d' (NE t) -> label' lb (Just d <> d') <$> go d r t -- XXX NOT SURE ABOUT THIS
+    Label lb (NE t) -> label' lb <$> go d r t -- XXX NOT SURE ABOUT THIS
     t           -> error $ "rotue: reached " ++ neShow t ++ " with "
                          ++ show (head ns) ++ " expected annotations"
     where r' = Route (map (subtract 1) ns) is
@@ -1011,16 +1011,16 @@ leafs f (NE t0)   = NE <$> go mempty t0 where
   go !d = \case
     Leaf u l             -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
                               NE t      -> t
-                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+                              EmptyDUAL -> Label NoLabels EmptyDUAL
     Up   u               -> f (NE $ Down NoLabels d (Up u)) <&> \case
                               NE t      -> t
-                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+                              EmptyDUAL -> Label NoLabels EmptyDUAL
 
     -- what to do about up modifications?
     UpMod i fu t         -> UpMod i fu <$> go d t
 
-    Label i md EmptyDUAL -> pure (Label i md EmptyDUAL)
-    Label i md (NE t)    -> Label i md . NE <$> go d t
+    Label i EmptyDUAL -> pure (Label i EmptyDUAL)
+    Label i (NE t)    -> Label i . NE <$> go d t
     Down _ d' t          -> go (d `mappend` d') t
     Annot i a t          -> Annot i a <$> go d t
     Concat i ts          -> Concat i <$> traverse (go d) ts
@@ -1035,14 +1035,14 @@ releaf f (NE t0)   = NE (go mempty t0) where
   go !d = \case
     Leaf u l             -> case f d u l of
                               NE t      -> t
-                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+                              EmptyDUAL -> Label NoLabels EmptyDUAL
     Up   u               -> Up u
 
     -- what to do about up modifications?
     UpMod i fu t         -> UpMod i fu (go d t)
 
-    Label i md EmptyDUAL -> Label i (Just d `mappend` md) EmptyDUAL
-    Label i md (NE t)    -> Label i (Just d `mappend` md) . NE $ go d t
+    Label i EmptyDUAL -> Label i EmptyDUAL
+    Label i (NE t)    -> Label i . NE $ go d t
     Down _ d' t          -> go (d `mappend` d') t
     Annot i a t          -> Annot i a (go d t)
     Concat i ts          -> Concat i $ fmap (go d) ts
@@ -1055,15 +1055,12 @@ downs _ EmptyDUAL = pure EmptyDUAL
 downs f (NE t0)   = go mempty t0 where
 
   go !d = \case
-    Down _ d' t        -> go (d `mappend` d') t
-    UpMod _ m t        -> upMod m <$> go d t
-    Annot _ a t        -> annot (act d a) <$> go d t
-    Label lb md (NE t) -> -- label' lb (Just d `mapp` d) . NE <$> go
-      case md of
-        Just d' -> let !d'' = d `mappend` d' in label' lb (Just d'') <$> go d'' t
-        Nothing -> label' lb Nothing <$> go d t
-    Concat _ ts          -> foldr mappend mempty <$> traverse (go d) ts
-    n                    -> f d <&> \d' -> down d' (NE n)
+    Down _ d' t     -> go (d `mappend` d') t
+    UpMod _ m t     -> upMod m <$> go d t
+    Annot _ a t     -> annot (act d a) <$> go d t
+    Label lb (NE t) -> label' lb <$> go d t
+    Concat _ ts     -> foldr mappend mempty <$> traverse (go d) ts
+    n               -> f d <&> \d' -> down d' (NE n)
 
 -- Traversing ups ------------------------------------------------------
 
@@ -1077,19 +1074,19 @@ matchingU p f (NE t0) = NE <$> go mempty t0 where
     lef@(Leaf u l)
       | p (act d u)   -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
                               NE t      -> t
-                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+                              EmptyDUAL -> Label NoLabels EmptyDUAL
       | otherwise        -> pure lef
-    Up   u               -> f (NE $ Down NoLabels d (Up u)) <&> \case
+    Up   u            -> f (NE $ Down NoLabels d (Up u)) <&> \case
                               NE t      -> t
-                              EmptyDUAL -> Label NoLabels Nothing EmptyDUAL
+                              EmptyDUAL -> Label NoLabels EmptyDUAL
 
-    UpMod i m t         -> UpMod i m <$> go d t
+    UpMod i m t       -> UpMod i m <$> go d t
 
-    Label i md EmptyDUAL -> pure (Label i md EmptyDUAL)
-    Label i md (NE t)    -> Label i md . NE <$> go d t
-    Down _ d' t          -> go (d `mappend` d') t
-    Annot i a t          -> Annot i a <$> go d t
-    Concat i ts          -> Concat i <$> traverse (go d) ts
+    Label i EmptyDUAL -> pure (Label i EmptyDUAL)
+    Label i (NE t)    -> Label i . NE <$> go d t
+    Down _ d' t       -> go (d `mappend` d') t
+    Annot i a t       -> Annot i a <$> go d t
+    Concat i ts       -> Concat i <$> traverse (go d) ts
 {-# INLINE matchingU #-}
 
 tapeMatches :: (Monoid d, Action d u) => (u -> Bool) -> IDUAL i d u m a l -> [Tape]
@@ -1097,17 +1094,17 @@ tapeMatches _ EmptyDUAL = []
 tapeMatches p (NE t0) = go mempty startTape t0 where
   go !d tp = \case
     Leaf u _
-      | p (act d u)     -> [tp]
-      | otherwise       -> []
+      | p (act d u)   -> [tp]
+      | otherwise     -> []
     Up u
-      | p (act d u)     -> [tp]
-      | otherwise       -> []
-    UpMod _ _ t         -> go d (tp & nannots +~ 1) t
-    Label _ _ EmptyDUAL -> []
-    Label _ _ (NE t)    -> go d tp t
-    Down _ d' t         -> go (d `mappend` d') tp t
-    Annot _ _ t         -> go d (tp & nannots +~ 1) t
-    Concat _ ts         -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
+      | p (act d u)   -> [tp]
+      | otherwise     -> []
+    UpMod _ _ t       -> go d (tp & nannots +~ 1) t
+    Label _ EmptyDUAL -> []
+    Label _ (NE t)    -> go d tp t
+    Down _ d' t       -> go (d `mappend` d') tp t
+    Annot _ _ t       -> go d (tp & nannots +~ 1) t
+    Concat _ ts       -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
 {-# INLINE tapeMatches #-}
 
 -- -- Debugging -----------------------------------------------------------
