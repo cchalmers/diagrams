@@ -1,17 +1,17 @@
-{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE ViewPatterns          #-}
-{-# LANGUAGE MonoLocalBinds        #-}
 
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 -- https://ghc.haskell.org/trac/ghc/ticket/14253
@@ -32,13 +32,13 @@
 
 module Diagrams.Types.Tree
   (
-    -- * DUAL-trees
+    -- * IDUAL-trees
     NE(..), IDUAL(..)
 
-    -- * Constructing DUAL-trees
+    -- * Constructing IDUAL-trees
   , leaf, leafU, modU, down, annot
 
-    -- * Folding DUAL-trees
+    -- * Folding IDUAL-trees
   , foldDUAL
 
   -- * Labels
@@ -70,7 +70,7 @@ module Diagrams.Types.Tree
   -- , getSubMap
   -- , lookupSub
   , traverseSub
-  , leafs
+  , leaves, leafs
   , releaf
   , tapeMatches
   , matchingU
@@ -87,49 +87,25 @@ module Diagrams.Types.Tree
   , routeBottoms
   ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative
-#endif
-import           Data.Foldable             as F (foldMap)
+import           Data.Foldable
 import           Data.Monoid.Action
 import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
 import           Data.Typeable
-import Data.Foldable
 
-import Data.Hashable (Hashable)
-import           Data.HashMap.Lazy                 (HashMap)
-import           Data.Map (Map)
-import qualified Data.Map as M
-import qualified Data.HashMap.Lazy                  as HM
+import           Data.Hashable             (Hashable)
+import           Data.HashMap.Lazy         (HashMap)
+import qualified Data.HashMap.Lazy         as HM
+import           Data.Map                  (Map)
+import qualified Data.Map                  as M
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Seq
 import           Data.Set                  (Set)
 import qualified Data.Set                  as Set
 
 import           Control.Lens
-import           Control.Lens.Internal (Pretext (..), Pretext', ipeek)
-import           Data.Profunctor.Unsafe ((#.))
-
-fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
-fldUl' = go where
-  go f !b = \case
-    Leaf     u _         -> f b u
-    Up       u           -> f b u
-    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
-    Label  _ _ (NE t)    -> go f b t
-    Label  _ _ EmptyDUAL -> b
-    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
-    Annot  _ _ t         -> go f b t
-    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
-{-# INLINE fldUl' #-}
-
--- | Fold each u annotation in order.
-foldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> IDUAL i d u m a l -> b
-foldUl' = \f b0 -> \case
-  NE t      -> fldUl' f b0 t
-  EmptyDUAL -> b0
-{-# INLINE foldUl' #-}
+import           Control.Lens.Internal     (Pretext (..), Pretext', ipeek)
+import           Data.Profunctor.Unsafe    (( #. ))
 
 ------------------------------------------------------------------------
 -- Labeling
@@ -137,16 +113,19 @@ foldUl' = \f b0 -> \case
 
 -- Tapes ---------------------------------------------------------------
 
--- | A tape is a unique path to part to a sub-DUALTree. When labeling a
---   tree, the empty tape is placed at the root. As the tree is built
---   on, the tape is modified, like leaving bread crumbs, so we can make
---   the way back to the part of the tree this was defined.
+-- | A tape is a unique path to a sub-IDUALTree. When labeling a tree t,
+--   the empty tape is placed at the root. As t is combined
+--   with other trees to make a bigger tree, its tape is modified,
+--   like leaving bread crumbs, so we can later make our way back to the
+--   part of the big tree where t now lives.
 data Tape = T [Int] Int
   -- Internal representation:
-  --   - path to sub-DUALTree, representated by index of each Concat node
-  --   - number of static annotations to pass after following the path
+  --   - First is list of indices telling us which child to take at
+  --     each subsequent Concat node as we travel down the tree.
+  --   - The remaining Int is the number of static annotations to pass
+  --     after following the path.
   --
-  -- Consider the following tree:
+  -- For example, consider the following tree:
   --
   --
   --                          /\
@@ -160,7 +139,7 @@ data Tape = T [Int] Int
   --                      |      |  |
   --                      x      y  z
   --
-  -- where x,y,z are the leafs, #a, #b, #c, #d, #e are the labels and
+  -- where x,y,z are the leaves, #a, #b, #c, #d, #e are the labels and
   -- annot is a static annotation. The tapes for the labels would be:
   --
   --   #a: Tape [0] 0
@@ -171,23 +150,24 @@ data Tape = T [Int] Int
 
   deriving (Show, Eq, Ord)
 
+-- | The empty or starting tape, /i.e./ just stay at the root.
 startTape :: Tape
 startTape = T [] 0
 {-# INLINE startTape #-}
 
--- | The indexes of the concat nodes to reach the branch of the target.
+-- | The indices of the concat nodes to reach the branch of the target.
 path :: Lens' Tape [Int]
 path f (T p n) = f p <&> \p' -> T p' n
 {-# INLINE path #-}
 
--- | Number of annotation to pass between the last concat and the
+-- | Number of annotations to pass between the last concat node and the
 --   target.
 nannots :: Lens' Tape Int
 nannots f (T p n) = f n <&> T p
 
 -- Routes --------------------------------------------------------------
 
--- | The route to take while traversing an idual tree. Consists of two
+-- | The route to take while traversing an IDUAL tree. Consists of two
 --   parts:
 --     - Subtrees to target before the next Concat. This is represented
 --       by the number of Annotation nodes to pass.
@@ -196,14 +176,13 @@ nannots f (T p n) = f n <&> T p
 data Route = Route [Int] [(Int,Route)]
   deriving Show
 
--- equating :: Eq b => (a -> b) -> a -> a -> Bool
--- equating f a b = f a == f b
-
 -- testTapes :: [Tape]
 -- testTapes = [T [] 0, T [0] 0, T [0,0] 0, T [0,1] 0, T [1] 0, T [1] 1]
 
--- | Construct a route to traverse an idual tree. Expects the tapes to
---   be given in order.
+-- | Construct a route to traverse an IDUAL tree. Expects the tapes to
+--   be given in order, /i.e./ the targets of the tapes should be
+--   encountered in order when doing a left-right preorder traversal
+--   of the tree.
 mkRoute :: [Tape] -> Route
 mkRoute = go where
   -- collect all targets before the next concat
@@ -212,16 +191,18 @@ mkRoute = go where
                    in  Route (n:ns) its
   go ts          = Route [] (go2 ts)
 
-  -- group together non-empty paths with their next concat index
+  -- group together non-empty paths by their next concat index
   go2 :: [Tape] -> [(Int, Route)]
   go2 (T (i:is) n:ts) = let (matched,ts') = go3 i ts
                         in  (i, mkRoute $ T is n : matched) : go2 ts'
   go2 _               = []
 
-  -- find subsequent tapes that follow the same concat index
+  -- Split a list of tapes into a run of consecutive tapes that start
+  -- with the given concat index and all the rest; also remove the
+  -- given concat index from the matching tapes.
   go3 :: Int -> [Tape] -> ([Tape], [Tape])
   go3 i ((T (i':is) n):ts')
-    | i == i' = let (matched, ts'') = go3 i ts'
+    | i == i' = let (matched, ts'') = go3 i ts'  -- first (T is n :) (go3 i ts')
                 in  (T is n:matched, ts'')
   go3 _ ts'' = ([], ts'')
 
@@ -229,10 +210,10 @@ mkRoute = go where
 
 -- Label map -----------------------------------------------------------
 
--- | A map from indexes to a set of subtrees. NoLabels is used to
+-- | A map from indices to a set of subtrees. NoLabels is used to
 --   hide all labels below this point. See 'resetLabels'.
 --
---   For a Diagram @i@ is 'AName'. In this form it's each to ask for
+--   For a Diagram @i@ is 'AName'. In this form it's easy to ask for
 --   subdiagrams that match every 'AName' in a 'Name' by taking the
 --   intersection of matching @'Set' 'Tape'@s.
 data Labels i
@@ -258,7 +239,7 @@ combineMaps i1 l1 i2 l2 =
     (NoLabels  , NoLabels)  -> NoLabels
   where
   -- This alters the tapes into the subdiagrams according to how the
-  -- DUALTree combines nodes:
+  -- IDUALTree combines nodes:
   --   - If either of the top level nodes not 'Concat', the top level
   --     node will become a 'Concat' of length 2, containing either
   --     side.
@@ -274,18 +255,18 @@ combineMaps i1 l1 i2 l2 =
 -- Non-Empty tree
 ------------------------------------------------------------------------
 
--- | Non-Empty DUAL-tree. u annotations are included so parts of the
---   tree can be edited and the u annotations can be rebuilt properly.
+-- | Non-Empty IDUAL-tree. @u@ annotations are included so parts of the
+--   tree can be edited and the @u@ annotations can be rebuilt properly.
 --   The tree is non-empty in the sense it always has at least a @u@
---   annotation. It does not have to contain any leafs.
+--   annotation. It does not have to contain any leaves.
 --
 --   Invariants:
 --     - The 'Seq' in 'Concat' has at least two elements
 --     - There should be no observable difference (other than
 --       performance) from having the down annotation "pushed".
 data NE i d u m a l
-  = Leaf   u !l                                     -- ^ @l@eaf
-  | Up     u                                        -- ^ @u@p
+  = Leaf   u !l                                       -- ^ @l@eaf
+  | Up     u                                          -- ^ @u@p
   | UpMod  !(Labels i) m !(NE i d u m a l)            -- ^ up-@m@od annotation
   | Label  !(Labels i) (Maybe d) !(IDUAL i d u m a l) -- ^ label annotation
   | Down   !(Labels i) !d !(NE i d u m a l)           -- ^ @d@own annotation
@@ -303,12 +284,12 @@ data NE i d u m a l
 -- ability to rebuild the envelope when editing a subdiagram. (Same for
 -- trace).
 
--- The (Maybe d) in the Label is keep track of any down annotations
+-- The (Maybe d) in the Label is to keep track of any down annotations
 -- applied since the label was added. This is useful for things like
 -- applying the inverse transform to a subdiagram so you can modify it
 -- in its original position at the point of naming.
 
--- go over the whole tree, collecting all the up annotations
+-- | Go over the whole tree, collecting all the up annotations
 gu :: (Action d u, Action m u, Monoid u) => NE i d u m a l -> u
 gu = go where
   go = \case
@@ -335,6 +316,19 @@ fldU f = go where
     Annot  _ _ t         -> go b t
     Concat _ ts          -> foldr (\t b' -> go b' t) b ts
 {-# INLINE fldU #-}
+
+fldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> NE i d u m a l -> b
+fldUl' = go where
+  go f !b = \case
+    Leaf     u _         -> f b u
+    Up       u           -> f b u
+    UpMod  _ m t         -> go (\b' u -> f b' $! act m u) b t
+    Label  _ _ (NE t)    -> go f b t
+    Label  _ _ EmptyDUAL -> b
+    Down   _ d t         -> go (\b' u -> f b' $! act d u) b t
+    Annot  _ _ t         -> go f b t
+    Concat _ ts          -> foldl' (\b' t -> go f b' t) b ts
+{-# INLINE fldUl' #-}
 
 -- get the top level cached labels of the tree
 gi :: NE i d u m a l -> Labels i
@@ -458,7 +452,7 @@ instance Monoid d => TraversableWithIndex d (NE i d u m a) where
   itraverse = itraverseOf itraversedNE
   {-# INLINE itraverse #-}
 
--- | Push all down annotations to just above the leafs, acting on @u@ and
+-- | Push all down annotations to just above the leaves, acting on @u@ and
 --   @a@ annotations along the way. (Mainly for benchmarking/debugging).
 pushDown :: (Action d m, Action d a, Monoid' d) => NE i d u m a l -> NE i d u m a l
 pushDown = go where
@@ -494,10 +488,10 @@ pushDown = go where
 -- --   {-# INLINE rnf #-}
 
 ------------------------------------------------------------------------
--- DUALTree
+-- IDUALTree
 ------------------------------------------------------------------------
 
--- | A non-empty DUAL-tree paired with a cached @u@ value.  These
+-- | A non-empty IDUAL-tree paired with a cached @u@ value.  These
 --   should never be constructed directly; instead, use 'pullU'.
 data IDUAL i d u m a l
   = NE !(NE i d u m a l)
@@ -620,7 +614,7 @@ down d (NE t)    = NE $ case t of
   _            -> Down (gi t) d t
 {-# INLINE down #-}
 
--- | Get top level up annotation of a non-empty DUALTree.
+-- | Get top level up annotation of a non-empty IDUALTree.
 getU :: (Action d u, Action m u, Monoid u) => IDUAL i d u m a l -> Maybe u
 getU (NE t) = Just (gu t)
 getU _      = Nothing
@@ -633,13 +627,20 @@ foldU = \f b0 -> \case
   EmptyDUAL -> b0
 {-# INLINE foldU #-}
 
--- | Get top level up annotation of a non-empty DUALTree.
+-- | Fold each u annotation in order.
+foldUl' :: (Action d u, Action m u) => (b -> u -> b) -> b -> IDUAL i d u m a l -> b
+foldUl' = \f b0 -> \case
+  NE t      -> fldUl' f b0 t
+  EmptyDUAL -> b0
+{-# INLINE foldUl' #-}
+
+-- | Get top level up annotation of a non-empty IDUALTree.
 getI :: IDUAL i d u m a l -> Labels i
 getI (NE t) = gi t
 getI _      = NoLabels
 {-# INLINE getI #-}
 
--- | Map over the @u@ annotation of a DUALTree.
+-- | Map over the @u@ annotation of a IDUALTree.
 upMod :: m -> IDUAL i d u m a l -> IDUAL i d u m a l
 upMod m (NE t) = NE (UpMod (labelAnnot $ gi t) m t)
 upMod _ _      = EmptyDUAL
@@ -669,7 +670,7 @@ mapUAL _  _  _  _      = EmptyDUAL
 -- -- Folds
 -- ------------------------------------------------------------
 
--- | Fold a dual tree for a monoidal result @r@. The @d@ annotations are
+-- | Fold an IDUAL tree for a monoidal result @r@. The @d@ annotations are
 --   accumulated from the top of the tree. Static @a@ annotations are
 --   acted on by the @d@ annotation accumulated up to that point.
 foldDUAL
@@ -688,7 +689,7 @@ foldDUAL lF aF (NE t0)   = go mempty t0 where
     Label _ _ (NE t)    -> go d t
     Down _ d' t         -> go (d `mappend` d') t
     Annot _ a t         -> aF (act d a) (go d t)
-    Concat _ ts         -> F.foldMap (go d) ts
+    Concat _ ts         -> foldMap (go d) ts
 -- {-# INLINE foldDUAL #-}
 
 ------------------------------------------------------------------------
@@ -878,7 +879,7 @@ mkPretext tape t = Pretext (\f -> ixDUAL tape f t)
 --                      |      |  |
 --                      x      y  z
 --
--- where x,y,z are the leafs, #a, #b, #c, #d, #e are the labels and
+-- where x,y,z are the leaves, #a, #b, #c, #d, #e are the labels and
 -- annot is a static annotation. The route for traversing labels #a and
 -- #e would be:
 --
@@ -981,7 +982,10 @@ route r0 f (NE t0)   = go mempty r0 t0 where
 -- extractAll _  _ _ EmptyDUAL = error "non-empty tape used on EmptyDUAL"
 -- extractAll r0 p (NE t0)   = go mempty r0 t0 where
 
--- All leafs -----------------------------------------------------------
+-- All leaves -----------------------------------------------------------
+
+leaves :: Monoid d => Traversal (IDUAL i d u m a l) (IDUAL i d u m a l') (IDUAL i d u m a l) (IDUAL i d u m a l')
+leaves = leafs
 
 leafs :: Monoid d => Traversal (IDUAL i d u m a l) (IDUAL i d u m a l') (IDUAL i d u m a l) (IDUAL i d u m a l')
 leafs _ EmptyDUAL = pure EmptyDUAL
@@ -1045,8 +1049,8 @@ downs f (NE t0)   = go mempty t0 where
 
 -- Traversing ups ------------------------------------------------------
 
--- | Match leafs whose up annotations match a predicate. Any up
--- modifications are ignored
+-- | Match leaves whose up annotations match a predicate. Any up
+--   modifications are ignored
 matchingU :: (Action d u, Monoid d) => (u -> Bool) -> Traversal' (IDUAL i d u m a l) (IDUAL i d u m a l)
 matchingU _ _ EmptyDUAL  = pure EmptyDUAL
 matchingU p f (NE t0) = NE <$> go mempty t0 where
