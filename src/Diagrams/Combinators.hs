@@ -153,12 +153,16 @@ extrudeEnvelope v = deformEnvelope (norm v) $ dir v
 {-# SPECIALISE extrudeEnvelope :: V3 Double -> Diagram V3 -> Diagram V3 #-}
 
 -- | @intrudeEnvelope v d@ asymmetrically \"intrudes\" the envelope of
---   a diagram away from the given direction.  All parts of the envelope
---   within 90 degrees of this direction are modified, offset inwards
---   by the magnitude of the vector.
+--   a diagram in the given direction.  All parts of the envelope within
+--   90 degrees of the intrustion are modified, offset inwards by the
+--   magnitude of the vector.
 --
---   Note that this could create strange inverted envelopes, where
---   @ diameter v d < 0 @.
+--   Note that @v@ specifies the direction and magnitude of the
+--   intrusion; this means for a given vector @v@, @intrudeEnvelope v@
+--   and @extrudeEnvelope v@ affect opposite sides of the envelope.
+--
+--   Note also that this can potentially create strange inverted
+--   envelopes, where @ diameter v d < 0 @.
 intrudeEnvelope
   :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
