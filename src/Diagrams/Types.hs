@@ -67,6 +67,7 @@ module Diagrams.Types
 
     -- *** Replaceing up annotations
   , modEnvelope
+  , replaceEnvelope
   , modTrace
   , upDiagram
   , upWith
@@ -106,6 +107,7 @@ module Diagrams.Types
 
 import           Control.Lens
 import           Data.Coerce
+import           Data.Maybe
 import           Data.Monoid.Coproduct.Strict
 import           Data.Monoid.WithSemigroup
 import           Data.Semigroup
@@ -263,6 +265,12 @@ modEnvelope
 modEnvelope f = over _Wrapped' $ T.modU (EnvMod f)
 {-# INLINE modEnvelope #-}
 
+-- | Modify the envelope. (Are there laws we need to satisfy?)
+replaceEnvelope
+  :: Envelope v n -> QDiagram v n m -> QDiagram v n m
+replaceEnvelope e = over _Wrapped' $ T.modU (EnvReplace e)
+{-# INLINE replaceEnvelope #-}
+
 -- | Modify the trace. (Are there laws we need to satisfy?)
 modTrace :: (Trace v n -> Trace v n) -> QDiagram v n m -> QDiagram v n m
 modTrace f = over _Wrapped' $ T.modU (TraceMod f)
@@ -417,7 +425,7 @@ instance (Metric v, HasLinearMap v, OrderedField n)
   {-# INLINE juxtapose #-}
 
 getEnvelopeDia :: (HasLinearMap v, OrderedField n) => QDiagram v n m -> Envelope v n
-getEnvelopeDia = foldU (\u e -> view upEnvelope u <> e) EmptyEnvelope
+getEnvelopeDia = fromMaybe EmptyEnvelope . T.getU . T.mapUAL (view upEnvelope) id id . (\(QD t) -> t)
 {-# SPECIALISE getEnvelopeDia :: QDiagram V2 Double m -> Envelope V2 Double #-}
 {-# SPECIALISE getEnvelopeDia :: QDiagram V3 Double m -> Envelope V3 Double #-}
 

@@ -37,7 +37,7 @@ import           Data.Monoid.WithSemigroup
 
 import           Geometry
 import           Geometry.Direction
-import           Linear                             (V3)
+import           Linear                             (V3, negated)
 import           Linear.Metric
 import           Linear.Vector                      ((*^))
 
@@ -64,7 +64,7 @@ import qualified Numeric.Interval.NonEmpty.Internal as I
 withEnvelope
   :: (InSpace v n a, Enveloped a)
   => a -> QDiagram v n m -> QDiagram v n m
-withEnvelope = modEnvelope . const . getEnvelope
+withEnvelope = replaceEnvelope . getEnvelope
 {-# INLINE withEnvelope #-}
 
 -- | Use the trace from some object as the trace for a diagram, in
@@ -147,22 +147,26 @@ strut v = upWith (upEnvelope .~ env)
 extrudeEnvelope
   :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
-extrudeEnvelope = deformEnvelope 0.5 . dir
+extrudeEnvelope v = deformEnvelope (norm v) $ dir v
 {-# INLINEABLE [0] extrudeEnvelope #-}
 {-# SPECIALISE extrudeEnvelope :: V2 Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE extrudeEnvelope :: V3 Double -> Diagram V3 -> Diagram V3 #-}
 
 -- | @intrudeEnvelope v d@ asymmetrically \"intrudes\" the envelope of
---   a diagram away from the given direction.  All parts of the envelope
---   within 90 degrees of this direction are modified, offset inwards
---   by the magnitude of the vector.
+--   a diagram in the given direction.  All parts of the envelope within
+--   90 degrees of the intrustion are modified, offset inwards by the
+--   magnitude of the vector.
 --
---   Note that this could create strange inverted envelopes, where
---   @ diameter v d < 0 @.
+--   Note that @v@ specifies the direction and magnitude of the
+--   intrusion; this means for a given vector @v@, @intrudeEnvelope v@
+--   and @extrudeEnvelope v@ affect opposite sides of the envelope.
+--
+--   Note also that this can potentially create strange inverted
+--   envelopes, where @ diameter v d < 0 @.
 intrudeEnvelope
   :: (HasLinearMap v, OrderedField n)
   => v n -> QDiagram v n m -> QDiagram v n m
-intrudeEnvelope = deformEnvelope (-0.5) . dir
+intrudeEnvelope v = deformEnvelope (-norm v) $ dir (negated v)
 {-# INLINEABLE [0] intrudeEnvelope #-}
 {-# SPECIALISE intrudeEnvelope :: V2 Double -> Diagram V2 -> Diagram V2 #-}
 {-# SPECIALISE intrudeEnvelope :: V3 Double -> Diagram V3 -> Diagram V3 #-}
@@ -174,11 +178,8 @@ deformEnvelope
 deformEnvelope s (Dir v) = modEnvelope (onEnvelope deformE)
   where
     deformE f (Dir v')
-      | dp > 0    = shift (dp*s) (f (Dir v'))
+      | dp > 0    = f (Dir v') & \(I.I a b) -> I.I a (b + dp*s)
+      | dp < 0    = f (Dir v') & \(I.I a b) -> I.I (a + dp*s) b
       | otherwise = f (Dir v')
       where dp = v' `dot` v
 {-# INLINE deformEnvelope #-}
-
-shift :: Num n => n -> I.Interval n -> I.Interval n
-shift s (I.I a b) = I.I (a + s) (b + s)
-

@@ -514,11 +514,14 @@ _Clip :: Iso' Clip (Seq.Seq (Path V2 Double))
 _Clip = coerced
 {-# INLINE _Clip #-}
 
-clip :: Path V2 Double -> Diagram V2 -> Diagram V2
+clip :: Path V2 Double -> QDiagram V2 Double m -> QDiagram V2 Double m
 clip = multiClip . Seq.singleton
 {-# INLINE clip #-}
 
-multiClip :: Seq.Seq (Path V2 Double) -> Diagram V2 -> Diagram V2
+multiClip
+  :: Seq.Seq (Path V2 Double)
+  -> QDiagram V2 Double m
+  -> QDiagram V2 Double m
 multiClip = applyAnnot _Clip
 {-# INLINE multiClip #-}
 
