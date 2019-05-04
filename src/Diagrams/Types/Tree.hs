@@ -149,7 +149,7 @@ data Tape = T [Int] Int
   --   #d: Tape [1,0] 0
   --   #d: Tape [1,1] 0
   --
-  -- Note that both Annot and UpMod nodes count as "static
+  -- Note that Annot, UpMod, and Down nodes all count as "static
   -- annotations".
 
   deriving (Show, Eq, Ord)
@@ -163,7 +163,7 @@ path :: Lens' Tape [Int]
 path f (T p n) = f p <&> \p' -> T p' n
 {-# INLINE path #-}
 
--- | Number of static annotations (@Annot@ and @UpMod@ nodes) to pass
+-- | Number of static annotations (@Annot@, @UpMod@, and @Down@ nodes) to pass
 --   between the last concat and the target.
 nannots :: Lens' Tape Int
 nannots f (T p n) = f n <&> T p
@@ -400,20 +400,9 @@ instance Monoid d => FunctorWithIndex d (NE i d u m a) where
       UpMod i m t       -> UpMod i m (go d t)
       Label i EmptyDUAL -> Label i EmptyDUAL
       Label i (NE t)    -> Label i (NE (go d t))
-      Down i d' t       -> Down i d' (go (d `mappend` d') t)
+      Down i d' t       -> Down i d' (go (d <> d') t)
       Annot i a t       -> Annot i a (go d t)
       Concat i ts       -> Concat i (fmap (go d) ts)
-      -- push down version
-      -- Leaf u l               -> Leaf (act d u) (f d l)
-      -- Up u                   -> Up (act d u)
-      -- Label i u d' EmptyDUAL -> Label i (act d u) (Just d <> d') EmptyDUAL
-      -- Label i u d' (NE t)    -> Label i (act d u) (Just d <> d') (NE (go d t))
-      -- Down i u d' t          ->
-      --   let !d''= d <> d'
-      --   in  Down i (act d u) d'' (NE (go d'' t))
-      -- Annot i u a t          -> Annot i (act d u) (act d a) (go d t)
-      -- Concat i u ts          -> Concat i (act d u) (fmap go ts)
-
   {-# INLINE imap #-}
 
 instance Monoid d => FoldableWithIndex d (NE i d u m a) where
@@ -628,7 +617,7 @@ down :: Semigroup d => d -> IDUAL i d u m a l -> IDUAL i d u m a l
 down _ EmptyDUAL = EmptyDUAL
 down d (NE t)    = NE $ case t of
   Down i d' t' -> Down i (d <> d') t'
-  _            -> Down (gi t) d t
+  _            -> Down (labelAnnot $ gi t) d t
 {-# INLINE down #-}
 
 -- | Get top level up annotation of a non-empty DUALTree.
@@ -813,12 +802,10 @@ traverseSub [] _ t = pure t
 -- Traversing a single target:
 -- The Tape describes how to reach a specific point in the tree. To
 -- traverse over this point we first follow the 'path' through each
--- Concat node, then pass over 'nannots' annotations (either UpMod or
+-- Concat node, then pass over 'nannots' annotations (UpMod, Down, or
 -- Annot nodes) at which point we've arrived at the target. Note that
 -- since we know that the target is in the tree this is a lens onto the
 -- target, if a bad tape is passed, ixDUAL will error.
-
--- XXX MODIFY
 
 -- | Lens onto a sub tree for the given tape. Will error when given a
 --   bad tape.
@@ -831,9 +818,6 @@ ixDUAL
   -> f (IDUAL i d u m a l)
 ixDUAL _       _ (EmptyDUAL) = error "tape used on EmptyDUAL"
 ixDUAL (T p n) f (NE t0)     = go Nothing p t0 where
-  mdown :: Maybe d -> IDUAL i d u m a l -> IDUAL i d u m a l
-  mdown = maybe id down
-
   mapp :: Maybe d -> d -> d
   mapp = maybe id (<>)
 
@@ -841,14 +825,13 @@ ixDUAL (T p n) f (NE t0)     = go Nothing p t0 where
   go :: Maybe d -> [Int] -> NE i d u m a l -> f (IDUAL i d u m a l)
   go d []         = go' d n
   go d iss@(i:is) = \case
-    Down _ d' t     -> go (Just $ d `mapp` d') iss t
+    Down _ d' t     -> down d' <$> go (Just $ d `mapp` d') iss t
     UpMod _ m t     -> upMod m <$> go d iss t
     Annot _ a t     -> annot a <$> go d iss t
     Label lb (NE t) -> label' lb <$> go d iss t
     Concat _ ts
       | (sL, t :< sR) <- Seq.splitAt i ts ->
-          go d is t <&> \t' -> fromSeq sL <> t' <> fromSeq sR
-          where fromSeq = mdown d . rebuildSeq
+          go d is t <&> \t' -> rebuildSeq sL <> t' <> rebuildSeq sR
     b -> error $ "ixDUAL: tape follow failed: " ++ neShow b
 
   -- Once we've followed to path through the concats, we pass
@@ -856,11 +839,10 @@ ixDUAL (T p n) f (NE t0)     = go Nothing p t0 where
   go' :: Maybe d -> Int -> NE i d u m a l -> f (IDUAL i d u m a l)
   go' _ i | i < 0 = error "ixDUAL: malformed tape: negative expected annotations"
   go' d 0 = \case
-    Label i t    -> label' i <$> indexed f d (mdown d t)
-    Down _ d' t  -> go' (Just $ d `mapp` d') 0 t
+    Label i t    -> label' i <$> indexed f d t
     b            -> error $ "ixDUAL: expected label node: " ++ neShow b
   go' d i = \case
-    Down _ d' t -> go' (Just $ d `mapp` d') i t
+    Down _ d' t -> down d' <$> go' (Just $ d `mapp` d') (i - 1) t
     Annot _ a t -> annot a <$> go' d (i - 1) t
     UpMod _ m t -> upMod m <$> go' d (i - 1) t
     _           -> error $ "ixDUAL: wrong number of expected annotations: " ++ show i
@@ -936,8 +918,6 @@ routeBottoms = go where
     [a]  -> [a]
     _:as -> lastTarget as
 
--- XXX MODIFY
-
 -- | Traverse a route. For routes with nested targets, this will apply
 --   the function to the first occurrence only.
 route
@@ -951,28 +931,28 @@ route _  _ EmptyDUAL = error "tape used on EmptyDUAL"
 route r0 f (NE t0)   = go mempty r0 t0 where
   -- strategy:
   -- In this case we are searching for the first target seen in a route.
-  -- For each Annot or Upmod passed we subtract 1 from the targets in
-  -- the rogue. When we reach @Route (0:_) _@ this is the target to
+  -- For each Annot, Upmod, or Down passed we subtract 1 from the targets in
+  -- the route. When we reach @Route (0:_) _@ this is the target to
   -- apply f to. When the route branches at a Concat, 'go' is applied to
   -- each targeted branch.
 
   go :: d -> Route -> NE i d u m a l -> f (IDUAL i d u m a l)
-  go d (Route [] [])     = pure . down d . NE
+  go d (Route [] [])     = pure . NE
 
   -- the target list is non-empty so the target is before a Concat
-  go d (Route (0:_) _) = f . down d . NE
+  go d (Route (0:_) _) = f . NE
   go d r@(Route ns@(_:_) is) = \case
-    Down _ d' t -> go (d `mappend` d') r t
+    Down _ d' t -> down d' <$> go (d <> d') r' t
     UpMod _ m t -> modU m <$> go d r' t
     Annot _ a t -> annot a <$> go d r' t
     Label lb (NE t) -> label' lb <$> go d r t -- XXX NOT SURE ABOUT THIS
-    t           -> error $ "rotue: reached " ++ neShow t ++ " with "
+    t               -> error $ "rotue: reached " ++ neShow t ++ " with "
                          ++ show (head ns) ++ " expected annotations"
     where r' = Route (map (subtract 1) ns) is
 
   -- the target list is empty so the target is after a concat
   go d r@(Route [] is) = \case
-    Down _ d' t -> go (d `mappend` d') r t
+    Down _ d' t -> down d' <$> go (d <> d') r t
     UpMod _ m t -> modU m <$> go d r t
     Annot _ a t -> annot a <$> go d r t
     Concat _ s  -> go2 d is s
@@ -982,11 +962,11 @@ route r0 f (NE t0)   = go mempty r0 t0 where
   go2 :: d -> [(Int, Route)] -> Seq (NE i d u m a l) -> f (IDUAL i d u m a l)
   go2 d ((i,r):is) ts
     | (sL, t :< sR) <- Seq.splitAt i ts =
-        (\t' sR' -> down d (rebuildSeq sL) <> t' <> sR')
+        (\t' sR' -> rebuildSeq sL <> t' <> sR')
           <$> go d r t
           <*> go2 d (is & each . _1 -~ (i+1)) sR
     | otherwise = error "route: tried to index wrong part of concat"
-  go2 d [] s = pure (down d (rebuildSeq s))
+  go2 d [] s = pure (rebuildSeq s)
 
 -- -- | Extract all traces of some objects from the tree, including
 -- --   reference to its name in the labels map, returning the tree
@@ -1021,9 +1001,9 @@ leafs f (NE t0)   = NE <$> go mempty t0 where
 
     Label i EmptyDUAL -> pure (Label i EmptyDUAL)
     Label i (NE t)    -> Label i . NE <$> go d t
-    Down _ d' t          -> go (d `mappend` d') t
-    Annot i a t          -> Annot i a <$> go d t
-    Concat i ts          -> Concat i <$> traverse (go d) ts
+    Down ls d' t      -> Down ls d' <$> go (d <> d') t
+    Annot i a t       -> Annot i a <$> go d t
+    Concat i ts       -> Concat i <$> traverse (go d) ts
 {-# INLINE leafs #-}
 
 releaf
@@ -1043,9 +1023,9 @@ releaf f (NE t0)   = NE (go mempty t0) where
 
     Label i EmptyDUAL -> Label i EmptyDUAL
     Label i (NE t)    -> Label i . NE $ go d t
-    Down _ d' t          -> go (d `mappend` d') t
-    Annot i a t          -> Annot i a (go d t)
-    Concat i ts          -> Concat i $ fmap (go d) ts
+    Down ls d' t      -> Down ls d' (go (d <> d') t)
+    Annot i a t       -> Annot i a (go d t)
+    Concat i ts       -> Concat i $ fmap (go d) ts
 {-# INLINE releaf #-}
 
 -- Traversing downs ----------------------------------------------------
@@ -1055,7 +1035,7 @@ downs _ EmptyDUAL = pure EmptyDUAL
 downs f (NE t0)   = go mempty t0 where
 
   go !d = \case
-    Down _ d' t     -> go (d `mappend` d') t
+    Down _ d' t     -> down d' <$> go (d <> d') t
     UpMod _ m t     -> upMod m <$> go d t
     Annot _ a t     -> annot (act d a) <$> go d t
     Label lb (NE t) -> label' lb <$> go d t
@@ -1084,7 +1064,7 @@ matchingU p f (NE t0) = NE <$> go mempty t0 where
 
     Label i EmptyDUAL -> pure (Label i EmptyDUAL)
     Label i (NE t)    -> Label i . NE <$> go d t
-    Down _ d' t       -> go (d `mappend` d') t
+    Down ls d' t      -> Down ls d' <$> go (d <> d') t
     Annot i a t       -> Annot i a <$> go d t
     Concat i ts       -> Concat i <$> traverse (go d) ts
 {-# INLINE matchingU #-}
@@ -1099,11 +1079,11 @@ tapeMatches p (NE t0) = go mempty startTape t0 where
     Up u
       | p (act d u)   -> [tp]
       | otherwise     -> []
-    UpMod _ _ t       -> go d (tp & nannots +~ 1) t
     Label _ EmptyDUAL -> []
     Label _ (NE t)    -> go d tp t
-    Down _ d' t       -> go (d `mappend` d') tp t
-    Annot _ _ t       -> go d (tp & nannots +~ 1) t
+    Down _ d' t       -> go (d <> d') (tp & nannots +~ 1) t
+    UpMod _ _ t       -> go d         (tp & nannots +~ 1) t
+    Annot _ _ t       -> go d         (tp & nannots +~ 1) t
     Concat _ ts       -> ifoldMap (\n -> go d (tp & path %~ flip snoc n)) ts
 {-# INLINE tapeMatches #-}
 
