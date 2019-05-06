@@ -277,7 +277,8 @@ data NE i d u m a l
     --   value.
   | Up     u
 
-    -- | XXX What is @UpMod@ for?
+    -- | @UpMod@ nodes can be used to arbitrarily modify the
+    --   accumulated @u@p annotation.
   | UpMod  !(Labels i) m !(NE i d u m a l)          -- ^ up-@m@od annotation
 
     -- | A @Label@ node is added at every location that has been
@@ -303,12 +304,6 @@ data NE i d u m a l
 -- For now I've kept the type annotation instead of using the actual
 -- types from "Diagrams.Types.Annotations" because it's easier to debug
 -- and reason about.
-
--- XXX The reason for the UpMod function is to get `pad`, `frame` and
--- friends to place nice with subdiagram traversals. Right now, as soon
--- as you use any of these envelope modifying functions you lose the
--- ability to rebuild the envelope when editing a subdiagram. (Same for
--- trace).
 
 -- | Go over the whole tree, collecting all the up annotations
 gu :: (Action d u, Action m u, Monoid u) => NE i d u m a l -> u
