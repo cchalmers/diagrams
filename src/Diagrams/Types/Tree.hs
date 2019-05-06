@@ -927,7 +927,7 @@ route
   -> f (IDUAL i d u m a l)
 route (Route [] []) _ EmptyDUAL    = pure EmptyDUAL
 route _  _ EmptyDUAL = error "tape used on EmptyDUAL"
-route r0 f (NE t0)   = go mempty r0 t0 where
+route r0 f (NE t0)   = go r0 t0 where
   -- strategy:
   -- In this case we are searching for the first target seen in a route.
   -- For each Annot, Upmod, or Down passed we subtract 1 from the targets in
@@ -935,37 +935,37 @@ route r0 f (NE t0)   = go mempty r0 t0 where
   -- apply f to. When the route branches at a Concat, 'go' is applied to
   -- each targeted branch.
 
-  go :: d -> Route -> NE i d u m a l -> f (IDUAL i d u m a l)
-  go d (Route [] [])     = pure . NE
+  go :: Route -> NE i d u m a l -> f (IDUAL i d u m a l)
+  go (Route [] [])     = pure . NE
 
   -- the target list is non-empty so the target is before a Concat
-  go d (Route (0:_) _) = f . NE
-  go d r@(Route ns@(_:_) is) = \case
-    Down _ d' t -> down d' <$> go (d <> d') r' t
-    UpMod _ m t -> modU m <$> go d r' t
-    Annot _ a t -> annot a <$> go d r' t
-    Label lb (NE t) -> label' lb <$> go d r t -- XXX NOT SURE ABOUT THIS
+  go (Route (0:_) _) = f . NE
+  go r@(Route ns@(_:_) is) = \case
+    Down _ d t      -> down d <$> go r' t
+    UpMod _ m t     -> modU m <$> go r' t
+    Annot _ a t     -> annot a <$> go r' t
+    Label lb (NE t) -> label' lb <$> go r t -- XXX NOT SURE ABOUT THIS
     t               -> error $ "rotue: reached " ++ neShow t ++ " with "
                          ++ show (head ns) ++ " expected annotations"
     where r' = Route (map (subtract 1) ns) is
 
   -- the target list is empty so the target is after a concat
-  go d r@(Route [] is) = \case
-    Down _ d' t -> down d' <$> go (d <> d') r t
-    UpMod _ m t -> modU m <$> go d r t
-    Annot _ a t -> annot a <$> go d r t
-    Concat _ s  -> go2 d is s
-    t -> error $ "route: reached " ++ neShow t ++ " before following path"
+  go r@(Route [] is) = \case
+    Down _ d t  -> down d <$> go r t
+    UpMod _ m t -> modU m <$> go r t
+    Annot _ a t -> annot a <$> go r t
+    Concat _ s  -> go2 is s
+    t           -> error $ "route: reached " ++ neShow t ++ " before following path"
 
   -- handle the branching of routes at a Concat
-  go2 :: d -> [(Int, Route)] -> Seq (NE i d u m a l) -> f (IDUAL i d u m a l)
-  go2 d ((i,r):is) ts
+  go2 :: [(Int, Route)] -> Seq (NE i d u m a l) -> f (IDUAL i d u m a l)
+  go2 ((i,r):is) ts
     | (sL, t :< sR) <- Seq.splitAt i ts =
         (\t' sR' -> rebuildSeq sL <> t' <> sR')
-          <$> go d r t
-          <*> go2 d (is & each . _1 -~ (i+1)) sR
+          <$> go r t
+          <*> go2 (is & each . _1 -~ (i+1)) sR
     | otherwise = error "route: tried to index wrong part of concat"
-  go2 d [] s = pure (rebuildSeq s)
+  go2 [] s = pure (rebuildSeq s)
 
 -- -- | Extract all traces of some objects from the tree, including
 -- --   reference to its name in the labels map, returning the tree
