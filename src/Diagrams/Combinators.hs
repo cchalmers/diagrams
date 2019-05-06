@@ -95,10 +95,11 @@ pad :: (HasLinearMap v, OrderedField n)
 pad s = modEnvelope (scale s)
 {-# INLINE pad #-}
 
--- | @frame s@ increases the envelope of a diagram by and absolute
---   amount @s@, s is in the local units of the diagram. This function
---   is similar to @pad@, only it takes an absolute quantity and
---   pre-centering should not be necessary.
+-- | @frame s@ increases the envelope of a diagram by an absolute
+--   amount @s@ in every direction, measured in the local units of the
+--   diagram. This function is similar to @pad@, but it expands by an
+--   absolute rather than a relative amount, and the result does not
+--   depend on the local origin of the diagram.
 frame :: (Ord n, Fractional n) => n -> QDiagram v n m -> QDiagram v n m
 frame s = modEnvelope $ onEnvelope (\f x -> inflate (f x))
   where
