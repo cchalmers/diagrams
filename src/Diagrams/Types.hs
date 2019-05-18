@@ -60,7 +60,6 @@ module Diagrams.Types
     -- * Names
   , named
   , localize
-  , styles
   , leafs
   , releaf
   , down
@@ -287,12 +286,6 @@ named
   :: (IsName nm, HasLinearMap v, OrderedField n, Semigroup m)
   => nm -> Traversal' (QDiagram v n m) (QDiagram v n m)
 named (toName -> Name ns) = _Wrapped' . T.traverseSub ns . _Unwrapped'
-
--- | Traversal over the styles of each leaf.
-styles
-  :: (HasLinearMap v, OrderedField n)
-  => Traversal' (QDiagram v n m) (Style v n)
-styles = _Wrapped . T.downs . downStyle
 
 leafs
   :: (HasLinearMap v, OrderedField n)

@@ -30,7 +30,6 @@ module Diagrams
 
   , named
   , localize
-  , styles
   , leafs
   , releaf
   , down

@@ -45,7 +45,6 @@ module Diagrams.Types.Tree
   , label
   , labels
   , resetLabels
-  , downs
 
     -- * Up annotations
   -- , _u
@@ -987,25 +986,28 @@ route r0 f (NE t0)   = go r0 t0 where
 leaves :: Monoid d => Traversal (IDUAL i d u m a l) (IDUAL i d u m a l') (IDUAL i d u m a l) (IDUAL i d u m a l')
 leaves = leafs
 
+
+-- Get rid of Down, get rid of d parameter to go
 leafs :: Monoid d => Traversal (IDUAL i d u m a l) (IDUAL i d u m a l') (IDUAL i d u m a l) (IDUAL i d u m a l')
 leafs _ EmptyDUAL = pure EmptyDUAL
-leafs f (NE t0)   = NE <$> go mempty t0 where
-  go !d = \case
-    Leaf u l             -> f (NE $ Down NoLabels d (Leaf u l)) <&> \case
-                              NE t      -> t
-                              EmptyDUAL -> Label NoLabels EmptyDUAL
-    Up   u               -> f (NE $ Down NoLabels d (Up u)) <&> \case
-                              NE t      -> t
-                              EmptyDUAL -> Label NoLabels EmptyDUAL
+leafs f (NE t0)   = NE <$> go t0 where
+  go = \case
+
+    Leaf u l          -> f (NE $ Leaf u l) <&> \case
+                           NE t      -> t
+                           EmptyDUAL -> Label NoLabels EmptyDUAL
+    Up   u            -> f (NE $ Up u) <&> \case
+                           NE t      -> t
+                           EmptyDUAL -> Label NoLabels EmptyDUAL
 
     -- what to do about up modifications?
-    UpMod i fu t         -> UpMod i fu <$> go d t
+    UpMod i fu t      -> UpMod i fu <$> go t
 
     Label i EmptyDUAL -> pure (Label i EmptyDUAL)
-    Label i (NE t)    -> Label i . NE <$> go d t
-    Down ls d' t      -> Down ls d' <$> go (d <> d') t
-    Annot i a t       -> Annot i a <$> go d t
-    Concat i ts       -> Concat i <$> traverse (go d) ts
+    Label i (NE t)    -> Label i . NE <$> go t
+    Down ls d' t      -> Down ls d'   <$> go t
+    Annot i a t       -> Annot i a    <$> go t
+    Concat i ts       -> Concat i     <$> traverse go ts
 {-# INLINE leafs #-}
 
 releaf
@@ -1029,20 +1031,6 @@ releaf f (NE t0)   = NE (go mempty t0) where
     Annot i a t       -> Annot i a (go d t)
     Concat i ts       -> Concat i $ fmap (go d) ts
 {-# INLINE releaf #-}
-
--- Traversing downs ----------------------------------------------------
-
-downs :: (Eq i, Hashable i, Action d a, Monoid' d) => Traversal' (IDUAL i d u m a l) d
-downs _ EmptyDUAL = pure EmptyDUAL
-downs f (NE t0)   = go mempty t0 where
-
-  go !d = \case
-    Down _ d' t     -> down d' <$> go (d <> d') t
-    UpMod _ m t     -> upMod m <$> go d t
-    Annot _ a t     -> annot (act d a) <$> go d t
-    Label lb (NE t) -> label' lb <$> go d t
-    Concat _ ts     -> foldr mappend mempty <$> traverse (go d) ts
-    n               -> f d <&> \d' -> down d' (NE n)
 
 -- Traversing ups ------------------------------------------------------
 
