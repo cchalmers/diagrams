@@ -495,8 +495,7 @@ pushDown = go where
 -- IDUALTree
 ------------------------------------------------------------------------
 
--- | A non-empty IDUAL-tree paired with a cached @u@ value.  These
---   should never be constructed directly; instead, use 'pullU'.
+-- | An IDUAL-tree.
 data IDUAL i d u m a l
   = NE !(NE i d u m a l)
   | EmptyDUAL
