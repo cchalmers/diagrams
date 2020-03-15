@@ -20,7 +20,6 @@ import           Control.Lens                       hiding (beside)
 
 import           Geometry
 import           Linear
-import           Linear.Vector                      ((*^))
 
 import           Data.Colour.Names
 import           Data.Maybe

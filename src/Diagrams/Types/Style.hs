@@ -76,7 +76,6 @@ import qualified Data.HashMap.Strict    as HM
 import qualified Data.Map               as M
 import           Data.Monoid.Action     as A
 import qualified Data.Set               as S
-import           Data.Type.Equality
 import           Data.Typeable
 
 import           Diagrams.Types.Measure
@@ -560,4 +559,3 @@ getAttr g (RAs hm) =
 
 getterRep :: forall a s. Typeable s => Getting a s a -> TypeRep
 getterRep _ = typeRep (Proxy :: Proxy s)
-
