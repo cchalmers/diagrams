@@ -6,13 +6,15 @@
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
 --
--- This module only contains exports defined in @diagrams-lib@ or
--- @diagrams-core@. This module can be used if you want to avoid some
--- potential conflicts with other modules, but importing
--- "Diagrams.Prelude" (which includes re-exports from other packages)
--- is often more convenient.
+-- This module only contains exports defined in the @diagrams@ package
+-- itself. This module can be used if you want to avoid some potential
+-- conflicts with other modules, but importing "Diagrams.Prelude"
+-- (which includes re-exports from other packages) is often more
+-- convenient.
 --
--- Notable emmitions from the this module to avoid potential comflicts:
+-- Notable omissions from the this module to avoid potential comflicts
+-- include:
+--
 --   - "Diagrams.TwoD.Image"
 --   - "Diagrams.TwoD.Text"
 --
@@ -30,10 +32,6 @@ module Diagrams
 
   , named
   , localize
-  , styles
-  , leafs
-  , releaf
-  , down
 
     -- * Subdiagrams
   , SubDiagram

@@ -16,7 +16,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Diagrams.Core.Types
+-- Module      :  Diagrams.Types
 -- Copyright   :  (c) 2011-2016 diagrams-core team (see LICENSE)
 -- License     :  BSD-style (see LICENSE)
 -- Maintainer  :  diagrams-discuss@googlegroups.com
@@ -24,8 +24,8 @@
 -- The core library of primitives forming the basis of an embedded
 -- domain-specific language for describing and rendering diagrams.
 --
--- "Diagrams.Core.Types" defines types and classes for
--- primitives, diagrams, and backends.
+-- "Diagrams.Types" defines types and classes for primitives,
+-- diagrams, and backends.
 --
 -----------------------------------------------------------------------------
 
@@ -56,16 +56,19 @@ module Diagrams.Types
     --   "Diagrams.Combinators" and "Diagrams.TwoD.Combinators"
     --   from the diagrams-lib package.
 
-    -- ** Modifying diagrams
-    -- * Names
+    -- * Modifying diagrams
+    -- ** Names
   , named
   , localize
-  , styles
+
+    -- ** Leaves
   , leafs
   , releaf
+
+    -- ** Down annotations
   , down
 
-    -- *** Replaceing up annotations
+    -- ** Replacing up annotations
   , modEnvelope
   , replaceEnvelope
   , modTrace
@@ -153,15 +156,17 @@ instance (Typeable n, RealFloat n) => TypeableFloat n
 -- backends.  However, not every backend must be able to render every
 -- type of primitive.
 
--- | A value of type @Prim b v n@ is an opaque (existentially quantified)
---   primitive which backend @b@ knows how to render in vector space @v@.
+-- | A value of type @Prim v n@ is an opaque (existentially quantified)
+--   primitive which lives in vector space @v@ over the scalar type @n@.
 data Prim v n where
   Prim :: Typeable p => p -> Prim (V p) (N p)
 
 type instance V (Prim v n) = v
 type instance N (Prim v n) = n
 
--- | Prism onto a 'Prim'.
+-- | Prism onto a 'Prim'.  You must correctly guess (or already know
+--   by some other means) the type @p@ in order to access the value
+--   wrapped inside the 'Prim'.
 _Prim :: (InSpace v n p, Typeable p) => Prism' (Prim v n) p
 _Prim = prism' Prim (\(Prim p) -> cast p)
 {-# INLINE _Prim #-}
@@ -238,12 +243,13 @@ upDiagram :: UpAnnots v n m -> QDiagram v n m
 upDiagram = QD . T.leafU
 {-# INLINE upDiagram #-}
 
--- | Construct a 'upDiagram' by apply a function to the empty up
+-- | Construct a 'upDiagram' by applying a function to the empty up
 --   annotations.
 upWith :: Monoid m => (UpAnnots v n m -> UpAnnots v n m) -> QDiagram v n m
 upWith f = upDiagram (f emptyUp)
 {-# INLINE upWith #-}
 
+-- | Convenience function for applying a down annotation.
 down
   :: forall v n m
   . (Traversable v, Additive v, Floating n)
@@ -287,12 +293,6 @@ named
   :: (IsName nm, HasLinearMap v, OrderedField n, Semigroup m)
   => nm -> Traversal' (QDiagram v n m) (QDiagram v n m)
 named (toName -> Name ns) = _Wrapped' . T.traverseSub ns . _Unwrapped'
-
--- | Traversal over the styles of each leaf.
-styles
-  :: (HasLinearMap v, OrderedField n)
-  => Traversal' (QDiagram v n m) (Style v n)
-styles = _Wrapped . T.downs . downStyle
 
 leafs
   :: (HasLinearMap v, OrderedField n)
